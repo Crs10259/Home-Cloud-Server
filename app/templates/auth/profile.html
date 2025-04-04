@@ -1,0 +1,140 @@
+{% extends 'base.html' %}
+
+{% block title %}User Profile - Home Cloud Server{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h2 class="mb-4"><i class="fas fa-id-card me-2"></i>User Profile</h2>
+    
+    <div class="row">
+        <!-- User Information -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-user me-2"></i>Account Information</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('auth.profile') }}">
+                        <div class="mb-3">
+                            <label for="username" class="form-label">Username</label>
+                            <input type="text" class="form-control" id="username" value="{{ user.username }}" readonly>
+                            <div class="form-text">Username cannot be changed.</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="email" name="email" value="{{ user.email }}">
+                        </div>
+                        <div class="mb-3">
+                            <label for="role" class="form-label">Role</label>
+                            <input type="text" class="form-control" id="role" value="{{ user.role }}" readonly>
+                        </div>
+                        <div class="mb-3">
+                            <label for="created_at" class="form-label">Account Created</label>
+                            <input type="text" class="form-control" id="created_at" value="{{ user.created_at.strftime('%Y-%m-%d %H:%M:%S') }}" readonly>
+                        </div>
+                        <div class="mb-3">
+                            <label for="last_login" class="form-label">Last Login</label>
+                            <input type="text" class="form-control" id="last_login" value="{{ user.last_login.strftime('%Y-%m-%d %H:%M:%S') if user.last_login else 'Never' }}" readonly>
+                        </div>
+                        
+                        <hr class="my-4">
+                        
+                        <h5 class="mb-3">Change Password</h5>
+                        <div class="mb-3">
+                            <label for="current_password" class="form-label">Current Password</label>
+                            <input type="password" class="form-control" id="current_password" name="current_password" placeholder="Enter current password">
+                        </div>
+                        <div class="mb-3">
+                            <label for="new_password" class="form-label">New Password</label>
+                            <input type="password" class="form-control" id="new_password" name="new_password" placeholder="Enter new password">
+                        </div>
+                        <div class="mb-3">
+                            <label for="confirm_password" class="form-label">Confirm New Password</label>
+                            <input type="password" class="form-control" id="confirm_password" placeholder="Confirm new password">
+                        </div>
+                        
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <button type="submit" class="btn btn-primary">Save Changes</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Storage Information -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-hdd me-2"></i>Storage Usage</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <!-- Storage Progress Bar -->
+                        <h6 class="card-subtitle mb-2 text-muted">Storage Used: {{ (user.storage_used / (1024*1024*1024))|round(2) }} GB / {{ (user.storage_quota / (1024*1024*1024))|round(2) }} GB</h6>
+                        <div class="progress" style="height: 20px;">
+                            <div class="progress-bar {% if storage_used_percent > 90 %}bg-danger{% elif storage_used_percent > 70 %}bg-warning{% else %}bg-success{% endif %}" 
+                                 role="progressbar" 
+                                 style="width: {{ storage_used_percent }}%;" 
+                                 aria-valuenow="{{ storage_used_percent }}" 
+                                 aria-valuemin="0" 
+                                 aria-valuemax="100">
+                                {{ storage_used_percent|round(1) }}%
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center mt-4">
+                        <a href="{{ url_for('files.index') }}" class="btn btn-primary">
+                            <i class="fas fa-folder me-2"></i>Manage Files
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- User Stats -->
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Account Statistics</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Total Files
+                            <span class="badge bg-primary rounded-pill" id="totalFiles">{{ files_count }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Total Folders
+                            <span class="badge bg-primary rounded-pill" id="totalFolders">{{ folders_count }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Last Upload
+                            <span class="badge bg-secondary" id="lastUpload">{{ last_upload_date or 'Never' }}</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Password match validation
+    document.addEventListener('DOMContentLoaded', function() {
+        const newPassword = document.getElementById('new_password');
+        const confirmPassword = document.getElementById('confirm_password');
+        
+        function validatePassword() {
+            if (newPassword.value !== confirmPassword.value) {
+                confirmPassword.setCustomValidity("Passwords don't match");
+            } else {
+                confirmPassword.setCustomValidity('');
+            }
+        }
+        
+        newPassword.addEventListener('change', validatePassword);
+        confirmPassword.addEventListener('keyup', validatePassword);
+    });
+</script>
+{% endblock %} 

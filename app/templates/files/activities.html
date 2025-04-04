@@ -1,0 +1,232 @@
+{% extends 'base.html' %}
+
+{% block title %}文件活动记录 - Home Cloud Server{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-history me-2"></i>文件活动记录</h2>
+    </div>
+    
+    <!-- 过滤选项 -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <i class="fas fa-filter me-2"></i> 筛选选项
+        </div>
+        <div class="card-body">
+            <form method="GET" action="{{ url_for('files.activities') }}" class="row g-3">
+                <div class="col-md-3">
+                    <label for="type" class="form-label">活动类型</label>
+                    <select class="form-select" id="type" name="type">
+                        <option value="">所有类型</option>
+                        {% for type in activity_types %}
+                        <option value="{{ type.value }}" {% if request.args.get('type') == type.value %}selected{% endif %}>{{ type.label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="date_from" class="form-label">开始日期</label>
+                    <input type="date" class="form-control" id="date_from" name="date_from" value="{{ request.args.get('date_from', '') }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="date_to" class="form-label">结束日期</label>
+                    <input type="date" class="form-control" id="date_to" name="date_to" value="{{ request.args.get('date_to', '') }}">
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary me-2">
+                        <i class="fas fa-search me-1"></i> 筛选
+                    </button>
+                    <a href="{{ url_for('files.activities') }}" class="btn btn-secondary">
+                        <i class="fas fa-redo me-1"></i> 重置
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- 活动记录列表 -->
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-list me-2"></i>活动记录</span>
+                <span class="badge bg-primary">{{ activities.total }} 条记录</span>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>文件名</th>
+                            <th>活动类型</th>
+                            <th>文件大小</th>
+                            <th>用时</th>
+                            <th>速度</th>
+                            <th>时间</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for activity in activities.items %}
+                        <tr>
+                            <td>
+                                {% if activity.file_name %}
+                                <span class="d-inline-block text-truncate" style="max-width: 200px;">
+                                    {% if activity.activity_type == 'upload' %}
+                                    <i class="fas fa-upload text-success me-1"></i>
+                                    {% elif activity.activity_type == 'download' %}
+                                    <i class="fas fa-download text-primary me-1"></i>
+                                    {% elif activity.activity_type == 'delete' %}
+                                    <i class="fas fa-trash-alt text-warning me-1"></i>
+                                    {% elif activity.activity_type == 'delete_permanent' %}
+                                    <i class="fas fa-trash-alt text-danger me-1"></i>
+                                    {% elif activity.activity_type == 'restore' %}
+                                    <i class="fas fa-trash-restore text-info me-1"></i>
+                                    {% elif activity.activity_type == 'move' %}
+                                    <i class="fas fa-exchange-alt text-secondary me-1"></i>
+                                    {% elif activity.activity_type == 'rename' %}
+                                    <i class="fas fa-font text-secondary me-1"></i>
+                                    {% elif activity.activity_type == 'share' %}
+                                    <i class="fas fa-share-alt text-success me-1"></i>
+                                    {% else %}
+                                    <i class="fas fa-file-alt text-secondary me-1"></i>
+                                    {% endif %}
+                                    {{ activity.file_name }}
+                                </span>
+                                {% else %}
+                                <span class="text-muted">
+                                    {% if activity.activity_type == 'empty_trash' %}
+                                    <i class="fas fa-trash-alt text-danger me-1"></i> 清空回收站
+                                    {% else %}
+                                    -
+                                    {% endif %}
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge 
+                                    {% if activity.activity_type == 'upload' %}bg-success
+                                    {% elif activity.activity_type == 'download' %}bg-primary
+                                    {% elif activity.activity_type == 'delete' %}bg-warning
+                                    {% elif activity.activity_type == 'delete_permanent' %}bg-danger
+                                    {% elif activity.activity_type == 'restore' %}bg-info
+                                    {% elif activity.activity_type == 'empty_trash' %}bg-danger
+                                    {% else %}bg-secondary{% endif %}">
+                                    {% if activity.activity_type == 'upload' %}上传
+                                    {% elif activity.activity_type == 'download' %}下载
+                                    {% elif activity.activity_type == 'delete' %}删除
+                                    {% elif activity.activity_type == 'delete_permanent' %}永久删除
+                                    {% elif activity.activity_type == 'restore' %}恢复
+                                    {% elif activity.activity_type == 'move' %}移动
+                                    {% elif activity.activity_type == 'rename' %}重命名
+                                    {% elif activity.activity_type == 'share' %}分享
+                                    {% elif activity.activity_type == 'empty_trash' %}清空回收站
+                                    {% else %}{{ activity.activity_type }}{% endif %}
+                                </span>
+                            </td>
+                            <td>
+                                {% if activity.file_size %}
+                                    {% if activity.file_size < 1024 %}
+                                        {{ activity.file_size }} B
+                                    {% elif activity.file_size < 1024 * 1024 %}
+                                        {{ (activity.file_size / 1024)|round(2) }} KB
+                                    {% elif activity.file_size < 1024 * 1024 * 1024 %}
+                                        {{ (activity.file_size / (1024 * 1024))|round(2) }} MB
+                                    {% else %}
+                                        {{ (activity.file_size / (1024 * 1024 * 1024))|round(2) }} GB
+                                    {% endif %}
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if activity.duration %}
+                                    {% if activity.duration < 1000 %}
+                                        {{ activity.duration }} ms
+                                    {% else %}
+                                        {{ (activity.duration / 1000)|round(2) }} 秒
+                                    {% endif %}
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if activity.speed %}
+                                    {% if activity.speed < 1024 %}
+                                        {{ activity.speed|round(2) }} B/s
+                                    {% elif activity.speed < 1024 * 1024 %}
+                                        {{ (activity.speed / 1024)|round(2) }} KB/s
+                                    {% else %}
+                                        {{ (activity.speed / (1024 * 1024))|round(2) }} MB/s
+                                    {% endif %}
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            <td>{{ activity.created_at }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- 分页 -->
+            {% if activities.pages > 1 %}
+            <div class="p-3">
+                <nav aria-label="Page navigation">
+                    <ul class="pagination justify-content-center">
+                        <li class="page-item {% if not activities.has_prev %}disabled{% endif %}">
+                            <a class="page-link" href="{% if activities.has_prev %}{{ url_for('files.activities', page=activities.prev_num, per_page=request.args.get('per_page'), type=request.args.get('type'), date_from=request.args.get('date_from'), date_to=request.args.get('date_to')) }}{% else %}#{% endif %}" aria-label="Previous">
+                                <span aria-hidden="true">&laquo;</span>
+                            </a>
+                        </li>
+                        
+                        {% for page_num in range(max(1, activities.page - 2), min(activities.pages + 1, activities.page + 3)) %}
+                        <li class="page-item {% if page_num == activities.page %}active{% endif %}">
+                            <a class="page-link" href="{{ url_for('files.activities', page=page_num, per_page=request.args.get('per_page'), type=request.args.get('type'), date_from=request.args.get('date_from'), date_to=request.args.get('date_to')) }}">{{ page_num }}</a>
+                        </li>
+                        {% endfor %}
+                        
+                        <li class="page-item {% if not activities.has_next %}disabled{% endif %}">
+                            <a class="page-link" href="{% if activities.has_next %}{{ url_for('files.activities', page=activities.next_num, per_page=request.args.get('per_page'), type=request.args.get('type'), date_from=request.args.get('date_from'), date_to=request.args.get('date_to')) }}{% else %}#{% endif %}" aria-label="Next">
+                                <span aria-hidden="true">&raquo;</span>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 用户友好的日期筛选器
+        const dateFrom = document.getElementById('date_from');
+        const dateTo = document.getElementById('date_to');
+        
+        // 设置日期选择器的默认值
+        if (!dateFrom.value) {
+            const lastMonth = new Date();
+            lastMonth.setMonth(lastMonth.getMonth() - 1);
+            // dateFrom.valueAsDate = lastMonth; // 可选：默认显示一个月前的日期
+        }
+        
+        // 当开始日期变化时，确保结束日期不早于开始日期
+        dateFrom.addEventListener('change', function() {
+            if (dateTo.value && dateFrom.value > dateTo.value) {
+                dateTo.value = dateFrom.value;
+            }
+        });
+        
+        // 当结束日期变化时，确保开始日期不晚于结束日期
+        dateTo.addEventListener('change', function() {
+            if (dateFrom.value && dateTo.value < dateFrom.value) {
+                dateFrom.value = dateTo.value;
+            }
+        });
+    });
+</script>
+{% endblock %} 

@@ -1,0 +1,146 @@
+{% extends 'base.html' %}
+
+{% block title %}Transfer History - Home Cloud Server{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-history me-2"></i>Transfer History</h2>
+        <div>
+            <a href="{{ url_for('files.index') }}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left me-1"></i> Back to Files
+            </a>
+        </div>
+    </div>
+    
+    <!-- Filter Card -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <i class="fas fa-filter me-2"></i> Filter
+        </div>
+        <div class="card-body">
+            <form method="GET" action="{{ url_for('files.transfer_history') }}" class="row g-3">
+                <div class="col-md-4">
+                    <label for="action" class="form-label">Activity Type</label>
+                    <select class="form-select" id="action" name="action">
+                        <option value="all" {% if action_type == 'all' %}selected{% endif %}>All Activities</option>
+                        <option value="upload" {% if action_type == 'upload' %}selected{% endif %}>Uploads Only</option>
+                        <option value="download" {% if action_type == 'download' %}selected{% endif %}>Downloads Only</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="date_from" class="form-label">From Date</label>
+                    <input type="date" class="form-control" id="date_from" name="date_from" value="{{ date_from }}">
+                </div>
+                <div class="col-md-4">
+                    <label for="date_to" class="form-label">To Date</label>
+                    <input type="date" class="form-control" id="date_to" name="date_to" value="{{ date_to }}">
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary">Apply Filters</button>
+                    <a href="{{ url_for('files.transfer_history') }}" class="btn btn-outline-secondary">Clear Filters</a>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Summary Card -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <i class="fas fa-chart-bar me-2"></i> Summary
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="card text-center mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ upload_count + download_count }}</h5>
+                            <p class="card-text text-muted">Total Transfers</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ upload_count }}</h5>
+                            <p class="card-text text-muted">Uploads</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ download_count }}</h5>
+                            <p class="card-text text-muted">Downloads</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title">{% if avg_upload_speed > 0 or avg_download_speed > 0 %}{{ ((avg_upload_speed + avg_download_speed) / 2 / 1024)|round(2) }} MB/s{% else %}N/A{% endif %}</h5>
+                            <p class="card-text text-muted">Avg Speed</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Activities Table -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-light">
+            <div class="d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-list me-2"></i> Activity Log</span>
+                <span class="badge bg-info">{{ activities|length }} activities</span>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            {% if activities %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Activity</th>
+                            <th>File</th>
+                            <th>Size</th>
+                            <th>Type</th>
+                            <th>Date & Time</th>
+                            <th>Duration</th>
+                            <th>Speed</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for activity in activities %}
+                        <tr>
+                            <td>
+                                {% if activity.action == 'upload' %}
+                                <span class="badge bg-success"><i class="fas fa-upload me-1"></i> Upload</span>
+                                {% elif activity.action == 'download' %}
+                                <span class="badge bg-primary"><i class="fas fa-download me-1"></i> Download</span>
+                                {% else %}
+                                <span class="badge bg-secondary"><i class="fas fa-question me-1"></i> {{ activity.action }}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ activity.target }}</td>
+                            <td>{{ (activity.file_size / (1024*1024))|round(2) if activity.file_size else '-' }} MB</td>
+                            <td>{{ activity.file_type|capitalize if activity.file_type else '-' }}</td>
+                            <td>{{ activity.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                            <td>{{ activity.duration|round(2) if activity.duration else '-' }} sec</td>
+                            <td>{{ ((activity.transfer_speed or 0) / 1024)|round(2) if activity.transfer_speed else '-' }} MB/s</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center p-5">
+                <i class="fas fa-history fa-4x mb-3 text-muted"></i>
+                <h5>No activities found</h5>
+                <p class="text-muted">Try changing your filters or performing some file transfers.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %} 

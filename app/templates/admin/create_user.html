@@ -1,0 +1,143 @@
+{% extends 'base.html' %}
+
+{% block title %}Create User - Home Cloud Server{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2><i class="fas fa-user-plus me-2"></i>Create New User</h2>
+        </div>
+        <div class="col-md-4 text-end">
+            <a href="{{ url_for('admin.users') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-1"></i> Back to Users
+            </a>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h5 class="mb-0">User Information</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('admin.create_user') }}">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="username" class="form-label">Username</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fas fa-user"></i></span>
+                                    <input type="text" class="form-control" id="username" name="username" required>
+                                </div>
+                                <div class="form-text">Username must be unique and will be used for login.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="email" class="form-label">Email</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fas fa-envelope"></i></span>
+                                    <input type="email" class="form-control" id="email" name="email" required>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="password" class="form-label">Password</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fas fa-lock"></i></span>
+                                    <input type="password" class="form-control" id="password" name="password" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="confirm_password" class="form-label">Confirm Password</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fas fa-lock"></i></span>
+                                    <input type="password" class="form-control" id="confirm_password" required>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="role" class="form-label">Role</label>
+                                <select class="form-select" id="role" name="role">
+                                    <option value="user">Regular User</option>
+                                    <option value="admin">Administrator</option>
+                                </select>
+                                <div class="form-text">Administrators have full access to all features.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="storage_quota" class="form-label">Storage Quota (GB)</label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control" id="storage_quota" name="storage_quota" value="5" min="1" step="1">
+                                    <span class="input-group-text">GB</span>
+                                </div>
+                                <div class="form-text">Maximum storage space allocated to this user.</div>
+                            </div>
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="trash_retention_days" class="form-label">Trash Retention (Days)</label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control" id="trash_retention_days" name="trash_retention_days" value="30" min="1" max="90" step="1">
+                                    <span class="input-group-text">Days</span>
+                                </div>
+                                <div class="form-text">Number of days items remain in trash before automatic deletion.</div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <button type="reset" class="btn btn-light">Reset</button>
+                            <button type="submit" class="btn btn-primary">Create User</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Information</h5>
+                </div>
+                <div class="card-body">
+                    <h6>Creating a New User</h6>
+                    <p>When you create a new user, they will have immediate access to the cloud storage system with the permissions and quota you set.</p>
+                    
+                    <h6>User Roles</h6>
+                    <ul>
+                        <li><strong>Regular User:</strong> Can only manage their own files and view their profile.</li>
+                        <li><strong>Administrator:</strong> Has full access to all system features, including user management, settings, and system monitoring.</li>
+                    </ul>
+                    
+                    <h6>Storage Quota</h6>
+                    <p>The storage quota limits how much disk space a user can use. This can be changed later in the user edit page.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Password match validation
+        const password = document.getElementById('password');
+        const confirmPassword = document.getElementById('confirm_password');
+        
+        function validatePassword() {
+            if (password.value !== confirmPassword.value) {
+                confirmPassword.setCustomValidity("Passwords don't match");
+            } else {
+                confirmPassword.setCustomValidity('');
+            }
+        }
+        
+        password.addEventListener('change', validatePassword);
+        confirmPassword.addEventListener('keyup', validatePassword);
+    });
+</script>
+{% endblock %} 

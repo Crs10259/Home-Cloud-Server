@@ -1,0 +1,100 @@
+<div class="subfolder-item ps-3 mb-2">
+    <div class="d-flex align-items-center">
+        <div class="form-check me-2">
+            <input class="form-check-input item-select" 
+                  type="checkbox" 
+                  value="folder-{{ subfolder_structure.folder.id }}" 
+                  id="folder-{{ subfolder_structure.folder.id }}"
+                  name="selected_items[]">
+        </div>
+        <div class="folder-icon me-2" data-bs-toggle="collapse" 
+             data-bs-target="#folder-contents-{{ subfolder_structure.folder.id }}" 
+             role="button" 
+             aria-expanded="false">
+            <i class="fas fa-folder me-1"></i>
+            <i class="fas fa-chevron-right folder-toggle"></i>
+        </div>
+        <div class="folder-details me-auto">
+            <div class="folder-name">{{ subfolder_structure.folder.name }}</div>
+            <div class="small text-muted">
+                {{ subfolder_structure.files|length }} files
+            </div>
+        </div>
+        <div class="folder-actions">
+            <form method="POST" action="{{ url_for('files.restore_folder', folder_id=subfolder_structure.folder.id) }}" class="d-inline">
+                <button type="submit" class="btn btn-sm btn-outline-success" title="Restore">
+                    <i class="fas fa-trash-restore"></i>
+                </button>
+            </form>
+            <form method="POST" action="{{ url_for('files.delete_folder', folder_id=subfolder_structure.folder.id) }}" class="d-inline">
+                <input type="hidden" name="permanent" value="true">
+                <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete Permanently"
+                      onclick="return confirm('Are you sure you want to permanently delete this folder? This action cannot be undone.')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Subfolder contents (collapsed by default) -->
+    <div class="collapse mt-2 ps-3 folder-contents" id="folder-contents-{{ subfolder_structure.folder.id }}">
+        <!-- Render files in this subfolder -->
+        {% if subfolder_structure.files %}
+        <div class="files-list mb-2">
+            <div class="small text-muted mb-1">Files:</div>
+            {% for file in subfolder_structure.files %}
+            <div class="d-flex align-items-center mb-1 ps-3">
+                <div class="form-check me-2">
+                    <input class="form-check-input item-select" 
+                          type="checkbox" 
+                          value="file-{{ file.id }}" 
+                          id="file-{{ file.id }}"
+                          name="selected_items[]">
+                </div>
+                <div class="file-icon me-2">
+                    {% if file.file_type == 'image' %}
+                    <i class="fas fa-file-image text-primary"></i>
+                    {% elif file.file_type == 'video' %}
+                    <i class="fas fa-file-video text-danger"></i>
+                    {% elif file.file_type == 'audio' %}
+                    <i class="fas fa-file-audio text-warning"></i>
+                    {% elif file.file_type == 'document' %}
+                    <i class="fas fa-file-alt text-info"></i>
+                    {% else %}
+                    <i class="fas fa-file text-secondary"></i>
+                    {% endif %}
+                </div>
+                <div class="file-details me-auto">
+                    <div class="file-name">{{ file.original_filename }}</div>
+                    <div class="small text-muted">{{ (file.size / 1024)|round(1) }} KB</div>
+                </div>
+                <div class="file-actions">
+                    <form method="POST" action="{{ url_for('files.restore_file', file_id=file.id) }}" class="d-inline">
+                        <button type="submit" class="btn btn-sm btn-outline-success" title="Restore">
+                            <i class="fas fa-trash-restore"></i>
+                        </button>
+                    </form>
+                    <form method="POST" action="{{ url_for('files.delete_file', file_id=file.id) }}" class="d-inline">
+                        <input type="hidden" name="permanent" value="true">
+                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete Permanently"
+                              onclick="return confirm('Are you sure you want to permanently delete this file? This action cannot be undone.')">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        
+        <!-- Render sub-subfolders recursively -->
+        {% if subfolder_structure.subfolders %}
+        <div class="subfolders-list">
+            <div class="small text-muted mb-1">Subfolders:</div>
+            {% for subfolder_structure in subfolder_structure.subfolders %}
+                {% include 'files/partials/subfolder.html' with context %}
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div> 

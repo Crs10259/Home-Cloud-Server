@@ -1,0 +1,434 @@
+{% extends 'base.html' %}
+
+{% block title %}System Logs - Home Cloud Server{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-file-alt me-2"></i>System Logs</h2>
+        <div>
+            <button id="refreshButton" class="btn btn-outline-primary me-2">
+                <i class="fas fa-sync-alt me-1"></i> Refresh
+            </button>
+            <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#filterLogsModal">
+                <i class="fas fa-filter me-1"></i> Filter
+            </button>
+        </div>
+    </div>
+    
+    <!-- Filter Summary -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body py-2">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="me-3"><i class="fas fa-calendar me-1"></i> <span id="dateRangeSummary">Last 24 hours</span></span>
+                    <span class="me-3"><i class="fas fa-tag me-1"></i> <span id="levelSummary">All levels</span></span>
+                    <span><i class="fas fa-layer-group me-1"></i> <span id="categorySummary">All categories</span></span>
+                </div>
+                <div>
+                    <button id="clearFiltersButton" class="btn btn-sm btn-light">
+                        <i class="fas fa-times me-1"></i> Clear Filters
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Logs Table -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-list me-2"></i>Log Entries</h5>
+                <div class="input-group" style="width: 300px">
+                    <input type="text" id="searchLogs" class="form-control" placeholder="Search logs...">
+                    <button class="btn btn-outline-secondary" type="button">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th style="width: 180px">Timestamp</th>
+                            <th style="width: 100px">Level</th>
+                            <th style="width: 150px">Category</th>
+                            <th>Message</th>
+                            <th style="width: 100px">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logsTableBody">
+                        {% for log in logs %}
+                        <tr>
+                            <td>{{ log.timestamp|datetime }}</td>
+                            <td>
+                                <span class="badge rounded-pill bg-{{ log.level_color }}">
+                                    {{ log.level }}
+                                </span>
+                            </td>
+                            <td>{{ log.category }}</td>
+                            <td class="text-truncate" style="max-width: 500px">{{ log.message }}</td>
+                            <td>
+                                <button type="button" class="btn btn-sm btn-outline-secondary view-details" 
+                                        data-log-id="{{ log.id }}" data-bs-toggle="modal" data-bs-target="#logDetailsModal">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center py-3">No log entries found</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="card-footer">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    Showing <span id="logsCount">{{ logs|length }}</span> logs
+                </div>
+                <nav aria-label="Logs pagination">
+                    <ul class="pagination pagination-sm mb-0">
+                        <li class="page-item disabled">
+                            <a class="page-link" href="#" tabindex="-1" aria-disabled="true">Previous</a>
+                        </li>
+                        <li class="page-item active"><a class="page-link" href="#">1</a></li>
+                        <li class="page-item"><a class="page-link" href="#">2</a></li>
+                        <li class="page-item"><a class="page-link" href="#">3</a></li>
+                        <li class="page-item">
+                            <a class="page-link" href="#">Next</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Log Summary -->
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Log Level Distribution</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="logLevelChart" width="400" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>Log Volume Over Time</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="logVolumeChart" width="400" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filter Logs Modal -->
+<div class="modal fade" id="filterLogsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-filter me-2"></i>Filter Logs</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="filterLogsForm">
+                    <div class="mb-3">
+                        <label for="timeRange" class="form-label">Time Range</label>
+                        <select class="form-select" id="timeRange" name="timeRange">
+                            <option value="1h">Last hour</option>
+                            <option value="6h">Last 6 hours</option>
+                            <option value="24h" selected>Last 24 hours</option>
+                            <option value="7d">Last 7 days</option>
+                            <option value="30d">Last 30 days</option>
+                            <option value="custom">Custom range</option>
+                        </select>
+                    </div>
+                    <div id="customDateRange" class="row mb-3" style="display: none;">
+                        <div class="col-md-6">
+                            <label for="startDate" class="form-label">Start Date</label>
+                            <input type="datetime-local" class="form-control" id="startDate" name="startDate">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="endDate" class="form-label">End Date</label>
+                            <input type="datetime-local" class="form-control" id="endDate" name="endDate">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="logLevel" class="form-label">Log Level</label>
+                        <select class="form-select" id="logLevel" name="logLevel" multiple>
+                            <option value="DEBUG">Debug</option>
+                            <option value="INFO">Info</option>
+                            <option value="WARNING">Warning</option>
+                            <option value="ERROR">Error</option>
+                            <option value="CRITICAL">Critical</option>
+                        </select>
+                        <div class="form-text">Hold Ctrl/Cmd to select multiple</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="category" class="form-label">Category</label>
+                        <select class="form-select" id="category" name="category" multiple>
+                            <option value="system">System</option>
+                            <option value="auth">Authentication</option>
+                            <option value="files">File Operations</option>
+                            <option value="admin">Admin</option>
+                            <option value="database">Database</option>
+                            <option value="api">API</option>
+                        </select>
+                        <div class="form-text">Hold Ctrl/Cmd to select multiple</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" id="applyFiltersButton" class="btn btn-primary" data-bs-dismiss="modal">Apply Filters</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Log Details Modal -->
+<div class="modal fade" id="logDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-scrollable modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-file-alt me-2"></i>Log Entry Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <strong><i class="fas fa-calendar me-1"></i> Timestamp:</strong>
+                                <div id="logDetailTimestamp" class="ms-4">2023-06-15 14:32:45</div>
+                            </div>
+                            <div class="mb-3">
+                                <strong><i class="fas fa-tag me-1"></i> Level:</strong>
+                                <div id="logDetailLevel" class="ms-4"><span class="badge rounded-pill bg-warning">WARNING</span></div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <strong><i class="fas fa-layer-group me-1"></i> Category:</strong>
+                                <div id="logDetailCategory" class="ms-4">File Operations</div>
+                            </div>
+                            <div class="mb-3">
+                                <strong><i class="fas fa-user me-1"></i> User:</strong>
+                                <div id="logDetailUser" class="ms-4">admin@example.com</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <strong><i class="fas fa-comment me-1"></i> Message:</strong>
+                        <div id="logDetailMessage" class="border rounded p-2 mt-1 bg-light">
+                            Failed to delete file /user/documents/report.pdf due to permission issues
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <strong><i class="fas fa-code me-1"></i> Additional Data:</strong>
+                        <pre id="logDetailData" class="border rounded p-2 mt-1 bg-light mb-0" style="max-height: 200px; overflow-y: auto;">
+{
+    "file_path": "/user/documents/report.pdf",
+    "user_id": 42,
+    "error_code": "EACCES",
+    "attempted_operation": "delete"
+}
+                        </pre>
+                    </div>
+                    <div class="mb-3">
+                        <strong><i class="fas fa-map-marker-alt me-1"></i> Source:</strong>
+                        <div id="logDetailSource" class="ms-4">file_operations.py:245 (delete_file)</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="downloadLogButton">
+                    <i class="fas fa-download me-1"></i> Download
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.0/dist/chart.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize charts
+        initCharts();
+        
+        // Time range change event
+        const timeRangeSelect = document.getElementById('timeRange');
+        const customDateRange = document.getElementById('customDateRange');
+        
+        timeRangeSelect.addEventListener('change', function() {
+            if (this.value === 'custom') {
+                customDateRange.style.display = 'flex';
+            } else {
+                customDateRange.style.display = 'none';
+            }
+        });
+        
+        // Apply filters button click
+        document.getElementById('applyFiltersButton').addEventListener('click', function() {
+            // Get filter values
+            const timeRange = document.getElementById('timeRange').value;
+            const logLevel = Array.from(document.getElementById('logLevel').selectedOptions).map(option => option.value);
+            const category = Array.from(document.getElementById('category').selectedOptions).map(option => option.value);
+            
+            // Update filter summary
+            document.getElementById('dateRangeSummary').textContent = getTimeRangeText(timeRange);
+            document.getElementById('levelSummary').textContent = logLevel.length ? logLevel.join(', ') : 'All levels';
+            document.getElementById('categorySummary').textContent = category.length ? category.join(', ') : 'All categories';
+            
+            // Here you would typically fetch filtered logs from the server
+            // For demo purposes, we'll just reload the page with filter params
+            // window.location.href = `/admin/logs?timeRange=${timeRange}&logLevel=${logLevel.join(',')}&category=${category.join(',')}`;
+            
+            // For demo, just reinitialize charts
+            initCharts();
+        });
+        
+        // Clear filters
+        document.getElementById('clearFiltersButton').addEventListener('click', function() {
+            document.getElementById('dateRangeSummary').textContent = 'Last 24 hours';
+            document.getElementById('levelSummary').textContent = 'All levels';
+            document.getElementById('categorySummary').textContent = 'All categories';
+            
+            // Reset form
+            document.getElementById('filterLogsForm').reset();
+            document.getElementById('customDateRange').style.display = 'none';
+            
+            // Reload page without filters
+            // window.location.href = '/admin/logs';
+        });
+        
+        // View log details
+        document.querySelectorAll('.view-details').forEach(button => {
+            button.addEventListener('click', function() {
+                const logId = this.getAttribute('data-log-id');
+                // Normally you would fetch log details from the server here
+                // For demo, we'll just use mock data
+                
+                // For a real implementation:
+                // fetch(`/api/logs/${logId}`)
+                //     .then(response => response.json())
+                //     .then(data => updateLogDetailsModal(data));
+            });
+        });
+        
+        // Refresh button
+        document.getElementById('refreshButton').addEventListener('click', function() {
+            // Simulate loading
+            this.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Loading...';
+            this.disabled = true;
+            
+            // Normally you would fetch fresh logs from the server here
+            // For demo, just wait a moment and reset the button
+            setTimeout(() => {
+                this.innerHTML = '<i class="fas fa-sync-alt me-1"></i> Refresh';
+                this.disabled = false;
+            }, 1000);
+        });
+        
+        // Download log
+        document.getElementById('downloadLogButton').addEventListener('click', function() {
+            // In a real application, this would download the log entry
+            alert('Log entry would be downloaded in a real implementation');
+        });
+    });
+    
+    function getTimeRangeText(timeRange) {
+        switch(timeRange) {
+            case '1h': return 'Last hour';
+            case '6h': return 'Last 6 hours';
+            case '24h': return 'Last 24 hours';
+            case '7d': return 'Last 7 days';
+            case '30d': return 'Last 30 days';
+            case 'custom': 
+                const start = document.getElementById('startDate').value;
+                const end = document.getElementById('endDate').value;
+                return `${start} to ${end}`;
+            default: return 'Last 24 hours';
+        }
+    }
+    
+    function initCharts() {
+        // Log Level Distribution Chart
+        const levelCtx = document.getElementById('logLevelChart').getContext('2d');
+        new Chart(levelCtx, {
+            type: 'pie',
+            data: {
+                labels: ['Debug', 'Info', 'Warning', 'Error', 'Critical'],
+                datasets: [{
+                    data: [15, 35, 10, 5, 2],
+                    backgroundColor: [
+                        '#6c757d', // Debug (gray)
+                        '#0d6efd', // Info (blue)
+                        '#ffc107', // Warning (yellow)
+                        '#dc3545', // Error (red)
+                        '#6f42c1'  // Critical (purple)
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                    }
+                }
+            }
+        });
+        
+        // Log Volume Over Time Chart
+        const volumeCtx = document.getElementById('logVolumeChart').getContext('2d');
+        new Chart(volumeCtx, {
+            type: 'line',
+            data: {
+                labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'],
+                datasets: [{
+                    label: 'Log Volume',
+                    data: [12, 8, 15, 35, 25, 20],
+                    fill: true,
+                    backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                    borderColor: 'rgba(13, 110, 253, 1)',
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Number of Logs'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Time'
+                        }
+                    }
+                }
+            }
+        });
+    }
+</script>
+{% endblock %} 

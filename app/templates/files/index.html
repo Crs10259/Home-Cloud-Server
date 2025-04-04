@@ -1,0 +1,772 @@
+{% extends 'base.html' %}
+
+{% block title %}My Files - Home Cloud Server{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb and Actions Row -->
+    <div class="row mb-3">
+        <div class="col-md-8">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('files.index') }}"><i class="fas fa-home"></i> Home</a></li>
+                    {% if current_folder.parent_id is not none %}
+                        <li class="breadcrumb-item"><a href="{{ url_for('files.index') }}">{{ current_folder.name }}</a></li>
+                        <!-- Add more breadcrumb items here for nested folders -->
+                    {% endif %}
+                </ol>
+            </nav>
+        </div>
+        <div class="col-md-4 text-end">
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadModal">
+                <i class="fas fa-upload me-1"></i> Upload
+            </button>
+            <button type="button" class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#newFolderModal">
+                <i class="fas fa-folder-plus me-1"></i> New Folder
+            </button>
+        </div>
+    </div>
+    
+    <!-- Storage Stats Row -->
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-9">
+                            <h5 class="card-title"><i class="fas fa-hdd me-2"></i>Storage Usage</h5>
+                            <div class="progress" style="height: 20px;">
+                                <div class="progress-bar {% if storage_percent > 90 %}bg-danger{% elif storage_percent > 70 %}bg-warning{% else %}bg-success{% endif %}" 
+                                     role="progressbar" 
+                                     style="width: {{ storage_percent }}%;" 
+                                     aria-valuenow="{{ storage_percent }}" 
+                                     aria-valuemin="0" 
+                                     aria-valuemax="100">
+                                    {{ storage_percent|round(1) }}%
+                                </div>
+                            </div>
+                            <small class="text-muted">{{ (storage_used / (1024*1024*1024))|round(2) }} GB of {{ (storage_quota / (1024*1024*1024))|round(2) }} GB used</small>
+                        </div>
+                        <div class="col-md-3 text-end">
+                            <form action="" method="GET" class="search-form">
+                                <div class="input-group">
+                                    <input type="text" name="query" class="form-control" placeholder="Search files...">
+                                    <button class="btn btn-primary" type="submit"><i class="fas fa-search"></i></button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Files and Folders Row -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <div class="row">
+                        <div class="col-6">
+                            <h5 class="mb-0">
+                                {% if parent_folder %}
+                                <a href="{{ url_for('files.index', folder_id=parent_folder.id) }}" class="btn btn-sm btn-light me-2">
+                                    <i class="fas fa-arrow-left"></i> Back
+                                </a>
+                                {% endif %}
+                                {{ current_folder.name }}
+                            </h5>
+                        </div>
+                        <div class="col-6 text-end">
+                            {% if subfolders or files %}
+                            <button type="button" class="btn btn-sm btn-outline-secondary me-2" id="selectAllBtn">
+                                <i class="fas fa-check-square me-1"></i> Select All
+                            </button>
+                            <div class="btn-group btn-group-sm d-none" id="batchActionsGroup">
+                                <button type="button" class="btn btn-danger" id="deleteSelectedBtn">
+                                    <i class="fas fa-trash me-1"></i> Delete Selected
+                                </button>
+                            </div>
+                            {% endif %}
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-light" id="view-grid">
+                                    <i class="fas fa-th"></i>
+                                </button>
+                                <button type="button" class="btn btn-light active" id="view-list">
+                                    <i class="fas fa-list"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    {% if not subfolders and not files %}
+                    <div class="text-center p-5">
+                        <i class="fas fa-folder-open fa-4x mb-3 text-muted"></i>
+                        <h5>This folder is empty</h5>
+                        <p class="text-muted">Upload files or create folders to get started.</p>
+                    </div>
+                    {% else %}
+                    <form id="batchOperationsForm" method="POST" action="">
+                        <input type="hidden" name="batch_action" id="batchAction" value="">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 40px;"><input type="checkbox" class="form-check-input" id="selectAllCheckbox"></th>
+                                        <th style="width: 50%">Name</th>
+                                        <th>Size</th>
+                                        <th>Type</th>
+                                        <th>Modified</th>
+                                        <th class="text-end">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Folders First -->
+                                    {% for folder in subfolders %}
+                                    <tr>
+                                        <td>
+                                            <input class="form-check-input item-select" 
+                                                  type="checkbox" 
+                                                  value="folder-{{ folder.id }}" 
+                                                  id="folder-{{ folder.id }}"
+                                                  name="selected_items[]">
+                                        </td>
+                                        <td>
+                                            <a href="{{ url_for('files.index', folder_id=folder.id) }}" class="text-decoration-none">
+                                                <i class="fas fa-folder text-warning me-2"></i> {{ folder.name }}
+                                            </a>
+                                        </td>
+                                        <td>-</td>
+                                        <td>Folder</td>
+                                        <td>{{ folder.updated_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                        <td class="text-end">
+                                            <div class="btn-group btn-group-sm">
+                                                <button type="button" class="btn btn-light download-folder" data-folder-id="{{ folder.id }}" data-folder-name="{{ folder.name }}">
+                                                    <i class="fas fa-download"></i>
+                                                </button>
+                                                <button type="button" class="btn btn-light rename-folder" data-folder-id="{{ folder.id }}" data-folder-name="{{ folder.name }}">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                                <button type="button" class="btn btn-danger delete-folder" data-folder-id="{{ folder.id }}" data-folder-name="{{ folder.name }}">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                    
+                                    <!-- Then Files -->
+                                    {% for file in files %}
+                                    <tr>
+                                        <td>
+                                            <input class="form-check-input item-select" 
+                                                  type="checkbox" 
+                                                  value="file-{{ file.id }}" 
+                                                  id="file-{{ file.id }}"
+                                                  name="selected_items[]">
+                                        </td>
+                                        <td>
+                                            <a href="{{ url_for('files.download_file', file_id=file.id) }}" class="text-decoration-none">
+                                                {% if file.file_type == 'image' %}
+                                                <i class="fas fa-file-image text-info me-2"></i>
+                                                {% elif file.file_type == 'video' %}
+                                                <i class="fas fa-file-video text-danger me-2"></i>
+                                                {% elif file.file_type == 'audio' %}
+                                                <i class="fas fa-file-audio text-success me-2"></i>
+                                                {% elif file.file_type == 'document' %}
+                                                <i class="fas fa-file-alt text-primary me-2"></i>
+                                                {% elif file.file_type == 'archive' %}
+                                                <i class="fas fa-file-archive text-secondary me-2"></i>
+                                                {% else %}
+                                                <i class="fas fa-file text-muted me-2"></i>
+                                                {% endif %}
+                                                {{ file.original_filename }}
+                                            </a>
+                                        </td>
+                                        <td>{{ (file.size / (1024*1024))|round(2) }} MB</td>
+                                        <td>{{ file.file_type|capitalize }}</td>
+                                        <td>{{ file.updated_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                        <td class="text-end">
+                                            <div class="btn-group btn-group-sm">
+                                                <a href="{{ url_for('files.download_file', file_id=file.id) }}" class="btn btn-light">
+                                                    <i class="fas fa-download"></i>
+                                                </a>
+                                                <button type="button" class="btn btn-light rename-file" data-file-id="{{ file.id }}" data-file-name="{{ file.original_filename }}">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                                <button type="button" class="btn btn-danger delete-file" data-file-id="{{ file.id }}" data-file-name="{{ file.original_filename }}">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Modal -->
+<div class="modal fade" id="uploadModal" tabindex="-1" aria-labelledby="uploadModalLabel" aria-hidden="false">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="uploadModalLabel"><i class="fas fa-upload me-2"></i>Upload Files</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form action="{{ url_for('files.upload_file') }}" method="POST" enctype="multipart/form-data" id="uploadForm">
+                    <input type="hidden" name="folder_id" value="{{ current_folder.id }}">
+                    
+                    <ul class="nav nav-tabs mb-3" id="uploadTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="files-tab" data-bs-toggle="tab" data-bs-target="#files-pane" type="button" role="tab" aria-controls="files-pane" aria-selected="true">Files</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="folder-tab" data-bs-toggle="tab" data-bs-target="#folder-pane" type="button" role="tab" aria-controls="folder-pane" aria-selected="false">Folder</button>
+                        </li>
+                    </ul>
+                    
+                    <div class="tab-content" id="uploadTabContent">
+                        <div class="tab-pane fade show active" id="files-pane" role="tabpanel" aria-labelledby="files-tab">
+                            <div class="mb-3">
+                                <label for="files" class="form-label">Select Files</label>
+                                <input type="file" class="form-control" id="files" name="files[]" multiple>
+                                <div class="form-text">Select multiple files to upload</div>
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="folder-pane" role="tabpanel" aria-labelledby="folder-tab">
+                            <div class="mb-3">
+                                <label for="folder" class="form-label">Select Folder</label>
+                                <input type="file" class="form-control" id="folder" name="files[]" webkitdirectory directory multiple>
+                                <input type="hidden" name="is_folder_upload" value="true">
+                                <div class="form-text">Select a folder to upload all its contents</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="uploadingFiles" class="d-none">
+                        <div class="mb-3">
+                            <div class="small mb-1 d-flex justify-content-between">
+                                <span id="currentFileName">Uploading...</span>
+                                <span id="uploadSpeed">0 KB/s</span>
+                            </div>
+                            <div class="progress mb-2">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" id="fileProgressBar" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <div class="small mb-1 d-flex justify-content-between">
+                                <span>Total Progress</span>
+                                <span id="uploadedCount">0/0 files</span>
+                            </div>
+                            <div class="progress">
+                                <div class="progress-bar bg-success progress-bar-striped progress-bar-animated" id="totalProgressBar" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid mt-3">
+                        <button type="submit" class="btn btn-primary" id="uploadButton">Upload</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- New Folder Modal -->
+<div class="modal fade" id="newFolderModal" tabindex="-1" aria-labelledby="newFolderModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="newFolderModalLabel"><i class="fas fa-folder-plus me-2"></i>New Folder</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form action="{{ url_for('files.create_folder') }}" method="POST">
+                    <input type="hidden" name="parent_id" value="{{ current_folder.id }}">
+                    <div class="mb-3">
+                        <label for="folder_name" class="form-label">Folder Name</label>
+                        <input type="text" class="form-control" id="folder_name" name="folder_name" required>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">Create Folder</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete File Modal -->
+<div class="modal fade" id="deleteFileModal" tabindex="-1" aria-labelledby="deleteFileModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteFileModalLabel"><i class="fas fa-trash me-2"></i>Delete File</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete <strong id="deleteFileName"></strong>?</p>
+                <p class="text-danger">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="deleteFileForm" action="" method="POST">
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Folder Modal -->
+<div class="modal fade" id="deleteFolderModal" tabindex="-1" aria-labelledby="deleteFolderModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteFolderModalLabel"><i class="fas fa-trash me-2"></i>Delete Folder</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete folder <strong id="deleteFolderName"></strong>?</p>
+                <p class="text-danger">All files and subfolders inside will also be deleted. This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="deleteFolderForm" action="" method="POST">
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Rename File Modal -->
+<div class="modal fade" id="renameFileModal" tabindex="-1" aria-labelledby="renameFileModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="renameFileModalLabel"><i class="fas fa-edit me-2"></i>Rename File</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="renameFileForm" action="" method="POST">
+                    <div class="mb-3">
+                        <label for="new_name" class="form-label">New Name</label>
+                        <input type="text" class="form-control" id="newFileName" name="new_name" required>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">Rename</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Rename Folder Modal -->
+<div class="modal fade" id="renameFolderModal" tabindex="-1" aria-labelledby="renameFolderModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="renameFolderModalLabel"><i class="fas fa-edit me-2"></i>Rename Folder</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="renameFolderForm" action="" method="POST">
+                    <div class="mb-3">
+                        <label for="new_name" class="form-label">New Name</label>
+                        <input type="text" class="form-control" id="newFolderName" name="new_name" required>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">Rename</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Delete file
+        const deleteFileModal = document.getElementById('deleteFileModal');
+        const deleteFileButtons = document.querySelectorAll('.delete-file');
+        
+        deleteFileButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const fileId = this.getAttribute('data-file-id');
+                const fileName = this.getAttribute('data-file-name');
+                
+                document.getElementById('deleteFileName').textContent = fileName;
+                document.getElementById('deleteFileForm').action = "{{ url_for('files.delete_file', file_id=0) }}".replace('0', fileId);
+                
+                // Show modal
+                const modal = new bootstrap.Modal(deleteFileModal);
+                modal.show();
+            });
+        });
+        
+        // Delete folder
+        const deleteFolderModal = document.getElementById('deleteFolderModal');
+        const deleteFolderButtons = document.querySelectorAll('.delete-folder');
+        
+        deleteFolderButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const folderId = this.getAttribute('data-folder-id');
+                const folderName = this.getAttribute('data-folder-name');
+                
+                document.getElementById('deleteFolderName').textContent = folderName;
+                document.getElementById('deleteFolderForm').action = "{{ url_for('files.delete_folder', folder_id=0) }}".replace('0', folderId);
+                
+                // Show modal
+                const modal = new bootstrap.Modal(deleteFolderModal);
+                modal.show();
+            });
+        });
+        
+        // Rename file
+        const renameFileModal = document.getElementById('renameFileModal');
+        const renameFileButtons = document.querySelectorAll('.rename-file');
+        
+        renameFileButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const fileId = this.getAttribute('data-file-id');
+                const fileName = this.getAttribute('data-file-name');
+                
+                document.getElementById('newFileName').value = fileName;
+                document.getElementById('renameFileForm').action = "{{ url_for('files.rename_file', file_id=0) }}".replace('0', fileId);
+                
+                // Show modal
+                const modal = new bootstrap.Modal(renameFileModal);
+                modal.show();
+            });
+        });
+        
+        // Rename folder
+        const renameFolderModal = document.getElementById('renameFolderModal');
+        const renameFolderButtons = document.querySelectorAll('.rename-folder');
+        
+        renameFolderButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const folderId = this.getAttribute('data-folder-id');
+                const folderName = this.getAttribute('data-folder-name');
+                
+                document.getElementById('newFolderName').value = folderName;
+                document.getElementById('renameFolderForm').action = "{{ url_for('files.rename_folder', folder_id=0) }}".replace('0', folderId);
+                
+                // Show modal
+                const modal = new bootstrap.Modal(renameFolderModal);
+                modal.show();
+            });
+        });
+        
+        // Download folder
+        const downloadFolderButtons = document.querySelectorAll('.download-folder');
+        downloadFolderButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const folderId = this.getAttribute('data-folder-id');
+                const folderName = this.getAttribute('data-folder-name');
+                
+                // Redirect to a download endpoint that creates a zip of the folder
+                window.location.href = "{{ url_for('files.download_folder', folder_id=0) }}".replace('0', folderId);
+            });
+        });
+        
+        // Format speed function - fixed to correctly display speeds
+        const formatSpeed = function(bytesPerSecond) {
+            if (bytesPerSecond < 0.1) {
+                return '0 KB/s';
+            } else if (bytesPerSecond >= 1073741824) {
+                return (bytesPerSecond / 1073741824).toFixed(2) + ' GB/s';
+            } else if (bytesPerSecond >= 1048576) {
+                return (bytesPerSecond / 1048576).toFixed(2) + ' MB/s';
+            } else {
+                return (bytesPerSecond / 1024).toFixed(2) + ' KB/s';
+            }
+        };
+        
+        // File Upload with AJAX and Progress
+        const uploadForm = document.getElementById('uploadForm');
+        const uploadButton = document.getElementById('uploadButton');
+        const uploadingFiles = document.getElementById('uploadingFiles');
+        const fileProgressBar = document.getElementById('fileProgressBar');
+        const totalProgressBar = document.getElementById('totalProgressBar');
+        const currentFileName = document.getElementById('currentFileName');
+        const uploadSpeed = document.getElementById('uploadSpeed');
+        const uploadedCount = document.getElementById('uploadedCount');
+        
+        uploadForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const filesInput = document.getElementById('files');
+            const folderInput = document.getElementById('folder');
+            const isFolderUpload = document.querySelector('#folder-tab').classList.contains('active');
+            
+            const files = isFolderUpload ? folderInput.files : filesInput.files;
+            
+            if (files.length === 0) {
+                alert('Please select files to upload');
+                return;
+            }
+            
+            uploadButton.disabled = true;
+            uploadingFiles.classList.remove('d-none');
+            
+            // Prepare for upload
+            const formData = new FormData();
+            
+            // Fix for folder_id
+            formData.append('folder_id', '{{ current_folder.id }}');
+            
+            // Set is_folder_upload flag correctly
+            if (isFolderUpload) {
+                formData.append('is_folder_upload', 'true');
+            }
+            
+            // Add all files to formData
+            for (let i = 0; i < files.length; i++) {
+                formData.append('files[]', files[i]);
+            }
+            
+            // Set up upload tracker variables
+            let totalUploaded = 0;
+            let lastTime = Date.now();
+            let lastUploaded = 0;
+            
+            // Set up AJAX request with progress tracking
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '{{ url_for("files.upload_file") }}', true);
+            
+            // Update progress during upload
+            xhr.upload.addEventListener('progress', function(e) {
+                if (e.lengthComputable) {
+                    // Calculate total progress percentage
+                    const percentComplete = (e.loaded / e.total) * 100;
+                    
+                    // Calculate upload speed
+                    const currentTime = Date.now();
+                    const elapsedTimeSeconds = (currentTime - lastTime) / 1000;
+                    
+                    if (elapsedTimeSeconds > 0.1) {  // Only update every 100ms
+                        const bytesUploaded = e.loaded - lastUploaded;
+                        const bytesPerSecond = bytesUploaded / elapsedTimeSeconds;
+                        
+                        // Display speed with appropriate unit - fixed to ensure it always shows
+                        uploadSpeed.textContent = formatSpeed(bytesPerSecond);
+                        
+                        // Reset time and uploaded bytes for next calculation
+                        lastTime = currentTime;
+                        lastUploaded = e.loaded;
+                    }
+                    
+                    // Update progress bars
+                    fileProgressBar.style.width = percentComplete + '%';
+                    fileProgressBar.textContent = percentComplete.toFixed(1) + '%';
+                    fileProgressBar.setAttribute('aria-valuenow', percentComplete.toFixed(1));
+                    
+                    totalProgressBar.style.width = percentComplete + '%';
+                    totalProgressBar.textContent = percentComplete.toFixed(1) + '%';
+                    totalProgressBar.setAttribute('aria-valuenow', percentComplete.toFixed(1));
+                    
+                    // Update upload count
+                    uploadedCount.textContent = '0/' + files.length + ' files';
+                    currentFileName.textContent = 'Uploading ' + files.length + ' files...';
+                }
+            });
+            
+            xhr.addEventListener('load', function() {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    // Success
+                    uploadButton.textContent = 'Upload Complete!';
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                } else {
+                    // Error
+                    uploadButton.disabled = false;
+                    uploadButton.textContent = 'Upload Failed. Try Again';
+                    alert('Upload failed: ' + xhr.statusText);
+                }
+            });
+            
+            xhr.addEventListener('error', function() {
+                uploadButton.disabled = false;
+                uploadButton.textContent = 'Upload Failed. Try Again';
+                alert('Upload failed. Please check your connection and try again.');
+            });
+            
+            // Start upload
+            xhr.send(formData);
+        });
+        
+        // Handle tab switching to prevent both file inputs being active
+        document.getElementById('files-tab').addEventListener('click', function() {
+            document.getElementById('folder').value = '';
+        });
+        
+        document.getElementById('folder-tab').addEventListener('click', function() {
+            document.getElementById('files').value = '';
+        });
+        
+        // Handle download clicks
+        const downloadButtons = document.querySelectorAll('.download-button');
+            
+        if (downloadButtons.length > 0) {
+            downloadButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const fileName = this.getAttribute('data-file-name');
+                    const fileSize = parseInt(this.getAttribute('data-file-size'), 10);
+                    
+                    // Create a toast to show download progress
+                    const toastContainer = document.getElementById('toast-container');
+                    if (!toastContainer) {
+                        const container = document.createElement('div');
+                        container.id = 'toast-container';
+                        container.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+                        document.body.appendChild(container);
+                    }
+                    
+                    const toastId = 'download-toast-' + Date.now();
+                    const toastHtml = `
+                        <div class="toast" id="${toastId}" role="alert" aria-live="assertive" aria-atomic="true">
+                            <div class="toast-header">
+                                <i class="fas fa-download me-2"></i>
+                                <strong class="me-auto">Downloading</strong>
+                                <small>just now</small>
+                                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+                            </div>
+                            <div class="toast-body">
+                                <div class="mb-1">${fileName}</div>
+                                <div class="progress" style="height: 10px;">
+                                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                                </div>
+                                <div class="d-flex justify-content-between mt-1">
+                                    <small class="text-muted">0%</small>
+                                    <small class="download-speed">Preparing...</small>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    document.getElementById('toast-container').insertAdjacentHTML('beforeend', toastHtml);
+                    
+                    const toast = document.getElementById(toastId);
+                    const bsToast = new bootstrap.Toast(toast, { autohide: false });
+                    bsToast.show();
+                    
+                    // Simulate download progress - replace with actual download tracking if possible
+                    let progress = 0;
+                    let startTime = Date.now();
+                    let lastUpdateTime = startTime;
+                    let downloadedBytes = 0;
+                    
+                    const interval = setInterval(() => {
+                        if (progress >= 90) {
+                            clearInterval(interval);
+                            return;
+                        }
+                        
+                        progress += Math.random() * 10;
+                        if (progress > 90) progress = 90;
+                        
+                        downloadedBytes = (fileSize * progress) / 100;
+                        
+                        // Calculate and format download speed
+                        const currentTime = Date.now();
+                        const elapsedTimeSeconds = (currentTime - lastUpdateTime) / 1000;
+                        const bytesPerSecond = (fileSize * (progress - (progress - 5))) / 100 / elapsedTimeSeconds;
+                        
+                        // Update the progress bar
+                        toast.querySelector('.progress-bar').style.width = progress + '%';
+                        toast.querySelector('.progress-bar').setAttribute('aria-valuenow', progress);
+                        toast.querySelector('.text-muted').textContent = progress.toFixed(0) + '%';
+                        toast.querySelector('.download-speed').textContent = formatSpeed(bytesPerSecond);
+                        
+                        lastUpdateTime = currentTime;
+                    }, 1000);
+                });
+            });
+        }
+        
+        // Select All Functionality
+        const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+        const selectAllBtn = document.getElementById('selectAllBtn');
+        const itemCheckboxes = document.querySelectorAll('.item-select');
+        const batchActionsGroup = document.getElementById('batchActionsGroup');
+        const batchOperationsForm = document.getElementById('batchOperationsForm');
+        const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
+        
+        function updateBatchActionsVisibility() {
+            const checkedBoxes = document.querySelectorAll('.item-select:checked');
+            if (checkedBoxes.length > 0) {
+                batchActionsGroup.classList.remove('d-none');
+            } else {
+                batchActionsGroup.classList.add('d-none');
+            }
+        }
+        
+        // Handle select all checkbox
+        if (selectAllCheckbox) {
+            selectAllCheckbox.addEventListener('change', function() {
+                const isChecked = this.checked;
+                itemCheckboxes.forEach(checkbox => {
+                    checkbox.checked = isChecked;
+                });
+                updateBatchActionsVisibility();
+            });
+        }
+        
+        // Handle select all button
+        if (selectAllBtn) {
+            selectAllBtn.addEventListener('click', function() {
+                const allSelected = Array.from(itemCheckboxes).every(cb => cb.checked);
+                
+                itemCheckboxes.forEach(checkbox => {
+                    checkbox.checked = !allSelected;
+                });
+                
+                if (selectAllCheckbox) {
+                    selectAllCheckbox.checked = !allSelected;
+                }
+                
+                updateBatchActionsVisibility();
+            });
+        }
+        
+        // Update batch actions when individual checkboxes change
+        itemCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', updateBatchActionsVisibility);
+        });
+        
+        // Handle delete selected items button
+        if (deleteSelectedBtn) {
+            deleteSelectedBtn.addEventListener('click', function() {
+                const checkedBoxes = document.querySelectorAll('.item-select:checked');
+                if (checkedBoxes.length === 0) {
+                    alert('Please select items to delete');
+                    return;
+                }
+                
+                if (confirm(`Are you sure you want to delete ${checkedBoxes.length} selected item(s)?`)) {
+                    batchOperationsForm.action = "{{ url_for('files.batch_delete') }}";
+                    document.getElementById('batchAction').value = 'delete';
+                    batchOperationsForm.submit();
+                }
+            });
+        }
+    });
+</script>
+{% endblock %} 

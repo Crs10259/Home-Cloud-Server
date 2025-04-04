@@ -1,0 +1,420 @@
+{% extends 'base.html' %}
+
+{% block title %}Recycle Bin - Home Cloud Server{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-trash-alt me-2"></i>Recycle Bin</h2>
+        <div>
+            {% if deleted_files or deleted_folders %}
+            <button type="button" class="btn btn-success me-2" id="selectAllBtn">
+                <i class="fas fa-check-square me-1"></i> Select All
+            </button>
+            <button type="button" class="btn btn-primary me-2" id="restoreSelectedBtn" disabled>
+                <i class="fas fa-trash-restore me-1"></i> Restore Selected
+            </button>
+            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#emptyTrashModal">
+                <i class="fas fa-trash-alt me-1"></i> Empty Bin
+            </button>
+            {% endif %}
+        </div>
+    </div>
+    
+    {% if not deleted_files and not deleted_folders %}
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle me-2"></i> There are no items in the recycle bin
+    </div>
+    {% else %}
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-light">
+            <div class="d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-info-circle me-2"></i>Trash Information</span>
+                <span class="badge bg-info">{{ (trash_size / (1024*1024))|round(2) }} MB</span>
+            </div>
+        </div>
+        <div class="card-body">
+            <p>Files in the recycle bin will be permanently deleted after their expiration date. You can restore files or manually empty the bin.</p>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Form for batch operations -->
+    <form id="batchOperationsForm" method="POST" action="{{ url_for('files.batch_restore') }}">
+        <input type="hidden" name="batch_action" id="batchAction" value="restore_selected">
+
+        <!-- Deleted Folders with Structure -->
+        {% if folder_structures %}
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-folder me-2"></i>Deleted Folders</span>
+                    <span class="badge bg-secondary">{{ folder_structures|length }} top-level folders</span>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush folder-tree">
+                    {% for structure in folder_structures %}
+                        <!-- Render root folder -->
+                        <div class="list-group-item p-3">
+                            <div class="d-flex align-items-center">
+                                <div class="form-check me-2">
+                                    <input class="form-check-input item-select" 
+                                          type="checkbox" 
+                                          value="folder-{{ structure.folder.id }}" 
+                                          id="folder-{{ structure.folder.id }}"
+                                          name="selected_items[]">
+                                </div>
+                                <div class="folder-icon me-2" data-bs-toggle="collapse" 
+                                     data-bs-target="#folder-contents-{{ structure.folder.id }}" 
+                                     role="button" 
+                                     aria-expanded="false">
+                                    <i class="fas fa-folder me-1"></i>
+                                    <i class="fas fa-chevron-right folder-toggle"></i>
+                                </div>
+                                <div class="folder-details me-auto">
+                                    <div class="folder-name">{{ structure.folder.name }}</div>
+                                    <div class="folder-meta small text-muted">
+                                        Deleted on {{ structure.folder.deleted_at.strftime('%Y-%m-%d %H:%M:%S') if structure.folder.deleted_at else '' }} · 
+                                        Expires on {{ structure.folder.expiry_date.strftime('%Y-%m-%d %H:%M:%S') if structure.folder.expiry_date else '' }}
+                                    </div>
+                                </div>
+                                <div class="folder-actions">
+                                    <form method="POST" action="{{ url_for('files.restore_folder', folder_id=structure.folder.id) }}" class="d-inline">
+                                        <button type="submit" class="btn btn-sm btn-outline-success" title="Restore">
+                                            <i class="fas fa-trash-restore"></i>
+                                        </button>
+                                    </form>
+                                    <form method="POST" action="{{ url_for('files.delete_folder', folder_id=structure.folder.id) }}" class="d-inline">
+                                        <input type="hidden" name="permanent" value="true">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete Permanently"
+                                              onclick="return confirm('Are you sure you want to permanently delete this folder? This action cannot be undone.')">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                            
+                            <!-- Folder contents (collapsed by default) -->
+                            <div class="collapse mt-2 ps-3 folder-contents" id="folder-contents-{{ structure.folder.id }}">
+                                <!-- Render files in this folder -->
+                                {% if structure.files %}
+                                <div class="files-list mb-2">
+                                    <div class="small text-muted mb-1">Files:</div>
+                                    {% for file in structure.files %}
+                                    <div class="d-flex align-items-center mb-1 ps-3">
+                                        <div class="form-check me-2">
+                                            <input class="form-check-input item-select" 
+                                                  type="checkbox" 
+                                                  value="file-{{ file.id }}" 
+                                                  id="file-{{ file.id }}"
+                                                  name="selected_items[]">
+                                        </div>
+                                        <div class="file-icon me-2">
+                                            {% if file.file_type == 'image' %}
+                                            <i class="fas fa-file-image text-primary"></i>
+                                            {% elif file.file_type == 'video' %}
+                                            <i class="fas fa-file-video text-danger"></i>
+                                            {% elif file.file_type == 'audio' %}
+                                            <i class="fas fa-file-audio text-warning"></i>
+                                            {% elif file.file_type == 'document' %}
+                                            <i class="fas fa-file-alt text-info"></i>
+                                            {% else %}
+                                            <i class="fas fa-file text-secondary"></i>
+                                            {% endif %}
+                                        </div>
+                                        <div class="file-details me-auto">
+                                            <div class="file-name">{{ file.original_filename }}</div>
+                                            <div class="small text-muted">{{ (file.size / 1024)|round(1) }} KB</div>
+                                        </div>
+                                        <div class="file-actions">
+                                            <form method="POST" action="{{ url_for('files.restore_file', file_id=file.id) }}" class="d-inline">
+                                                <button type="submit" class="btn btn-sm btn-outline-success" title="Restore">
+                                                    <i class="fas fa-trash-restore"></i>
+                                                </button>
+                                            </form>
+                                            <form method="POST" action="{{ url_for('files.delete_file', file_id=file.id) }}" class="d-inline">
+                                                <input type="hidden" name="permanent" value="true">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete Permanently"
+                                                      onclick="return confirm('Are you sure you want to permanently delete this file? This action cannot be undone.')">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                                
+                                <!-- Render subfolders recursively -->
+                                {% if structure.subfolders %}
+                                <div class="subfolders-list">
+                                    <div class="small text-muted mb-1">Subfolders:</div>
+                                    {% for subfolder_structure in structure.subfolders %}
+                                        {% include 'files/partials/subfolder.html' %}
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Deleted Files (outside folders or in root) -->
+        {% if deleted_files %}
+        <div class="card shadow-sm">
+            <div class="card-header bg-light">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span><i class="fas fa-file me-2"></i>Deleted Files</span>
+                    <span class="badge bg-secondary">{{ deleted_files|length }} files</span>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush">
+                    {% for file in deleted_files %}
+                    <div class="list-group-item p-3">
+                        <div class="d-flex align-items-center">
+                            <div class="form-check me-2">
+                                <input class="form-check-input item-select" 
+                                      type="checkbox" 
+                                      value="file-{{ file.id }}" 
+                                      id="file-{{ file.id }}"
+                                      name="selected_items[]">
+                            </div>
+                            <div class="file-icon me-2">
+                                {% if file.file_type == 'image' %}
+                                <i class="fas fa-file-image text-primary"></i>
+                                {% elif file.file_type == 'video' %}
+                                <i class="fas fa-file-video text-danger"></i>
+                                {% elif file.file_type == 'audio' %}
+                                <i class="fas fa-file-audio text-warning"></i>
+                                {% elif file.file_type == 'document' %}
+                                <i class="fas fa-file-alt text-info"></i>
+                                {% elif file.file_type == 'spreadsheet' %}
+                                <i class="fas fa-file-excel text-success"></i>
+                                {% elif file.file_type == 'presentation' %}
+                                <i class="fas fa-file-powerpoint text-danger"></i>
+                                {% elif file.file_type == 'archive' %}
+                                <i class="fas fa-file-archive text-secondary"></i>
+                                {% else %}
+                                <i class="fas fa-file text-secondary"></i>
+                                {% endif %}
+                            </div>
+                            <div class="file-details me-auto">
+                                <div class="file-name">{{ file.original_filename }}</div>
+                                <div class="file-meta">
+                                    {{ (file.size / 1024)|round(1) }} KB · 
+                                    Deleted on {{ file.deleted_at.strftime('%Y-%m-%d %H:%M:%S') if file.deleted_at else '' }} · 
+                                    Expires on {{ file.expiry_date.strftime('%Y-%m-%d %H:%M:%S') if file.expiry_date else '' }}
+                                </div>
+                            </div>
+                            <div class="file-actions">
+                                <form method="POST" action="{{ url_for('files.restore_file', file_id=file.id) }}" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-success" title="Restore">
+                                        <i class="fas fa-trash-restore"></i>
+                                    </button>
+                                </form>
+                                <form method="POST" action="{{ url_for('files.delete_file', file_id=file.id) }}" class="d-inline">
+                                    <input type="hidden" name="permanent" value="true">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete Permanently"
+                                          onclick="return confirm('Are you sure you want to permanently delete this file? This action cannot be undone.')">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </form>
+</div>
+
+<!-- Empty Trash Confirmation Modal -->
+<div class="modal fade" id="emptyTrashModal" tabindex="-1" aria-labelledby="emptyTrashModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="emptyTrashModalLabel">Confirm Empty Recycle Bin</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to empty the recycle bin? This action will permanently delete all files and folders in the bin and cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form method="POST" action="{{ url_for('files.empty_trash') }}">
+                    <button type="submit" class="btn btn-danger">Empty Recycle Bin</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Restore Selected Modal -->
+<div class="modal fade" id="restoreSelectedModal" tabindex="-1" aria-labelledby="restoreSelectedModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="restoreSelectedModalLabel">Restore Selected Items</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to restore the selected items?</p>
+                <p id="restoreSelectedCount" class="text-muted"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" id="confirmRestoreSelectedBtn">Restore Selected</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 添加事件监听器到所有恢复文件按钮
+        document.querySelectorAll('form[action^="/files/restore/"]').forEach(form => {
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const submitUrl = this.action;
+                console.log("提交恢复文件请求: " + submitUrl);
+                
+                // 创建 fetch 请求
+                fetch(submitUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(response => {
+                    if (response.ok) {
+                        console.log("恢复文件成功");
+                        window.location.reload();
+                    } else {
+                        console.error("恢复文件失败:", response.status);
+                        alert('Failed to restore file');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error restoring file');
+                });
+            });
+        });
+        
+        // 添加事件监听器到所有恢复文件夹按钮
+        document.querySelectorAll('form[action^="/files/restore_folder/"]').forEach(form => {
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const submitUrl = this.action;
+                console.log("提交恢复文件夹请求: " + submitUrl);
+                
+                // 创建 fetch 请求
+                fetch(submitUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(response => {
+                    if (response.ok) {
+                        console.log("恢复文件夹成功");
+                        window.location.reload();
+                    } else {
+                        console.error("恢复文件夹失败:", response.status);
+                        alert('Failed to restore folder');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error restoring folder');
+                });
+            });
+        });
+        
+        // 现有代码
+        // Toggle folder contents
+        document.querySelectorAll('.folder-icon[data-bs-toggle="collapse"]').forEach(folder => {
+            folder.addEventListener('click', function() {
+                const icon = this.querySelector('.folder-toggle');
+                if (icon.classList.contains('fa-chevron-right')) {
+                    icon.classList.replace('fa-chevron-right', 'fa-chevron-down');
+                } else {
+                    icon.classList.replace('fa-chevron-down', 'fa-chevron-right');
+                }
+            });
+        });
+        
+        // Handle selecting items
+        const checkboxes = document.querySelectorAll('.item-select');
+        const selectAllBtn = document.getElementById('selectAllBtn');
+        const restoreSelectedBtn = document.getElementById('restoreSelectedBtn');
+        const batchForm = document.getElementById('batchOperationsForm');
+        const batchAction = document.getElementById('batchAction');
+        const confirmRestoreSelectedBtn = document.getElementById('confirmRestoreSelectedBtn');
+        
+        // Select all functionality
+        selectAllBtn.addEventListener('click', function() {
+            const allSelected = [...checkboxes].every(cb => cb.checked);
+            
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = !allSelected;
+            });
+            
+            updateRestoreButton();
+            
+            // Change button text based on selection state
+            this.innerHTML = allSelected ? 
+                '<i class="fas fa-check-square me-1"></i> Select All' : 
+                '<i class="fas fa-square me-1"></i> Deselect All';
+        });
+        
+        // Update restore button state when checkboxes change
+        checkboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', updateRestoreButton);
+        });
+        
+        // Show restore modal when restore button is clicked
+        restoreSelectedBtn.addEventListener('click', function() {
+            const selectedCount = [...checkboxes].filter(cb => cb.checked).length;
+            document.getElementById('restoreSelectedCount').textContent = `${selectedCount} items selected for restoration.`;
+            
+            const restoreModal = new bootstrap.Modal(document.getElementById('restoreSelectedModal'));
+            restoreModal.show();
+        });
+        
+        // Confirm restore selected
+        confirmRestoreSelectedBtn.addEventListener('click', function() {
+            batchOperationsForm.submit();
+        });
+        
+        // Function to update restore button state
+        function updateRestoreButton() {
+            const selectedCount = [...checkboxes].filter(cb => cb.checked).length;
+            restoreSelectedBtn.disabled = selectedCount === 0;
+            
+            if (selectedCount > 0) {
+                restoreSelectedBtn.textContent = `Restore Selected (${selectedCount})`;
+            } else {
+                restoreSelectedBtn.innerHTML = '<i class="fas fa-trash-restore me-1"></i> Restore Selected';
+            }
+            
+            // Update select all button text
+            const allSelected = selectedCount === checkboxes.length;
+            selectAllBtn.innerHTML = allSelected ? 
+                '<i class="fas fa-square me-1"></i> Deselect All' : 
+                '<i class="fas fa-check-square me-1"></i> Select All';
+        }
+    });
+</script>
+{% endblock %} 

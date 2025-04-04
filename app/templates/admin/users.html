@@ -1,0 +1,147 @@
+{% extends 'base.html' %}
+
+{% block title %}User Management - Home Cloud Server{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-users me-2"></i>User Management</h2>
+        <a href="{{ url_for('admin.create_user') }}" class="btn btn-primary">
+            <i class="fas fa-user-plus me-1"></i> Create User
+        </a>
+    </div>
+    
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5 class="mb-0">User List</h5>
+                </div>
+                <div class="col-md-6">
+                    <input type="text" class="form-control" id="userSearch" placeholder="Search users...">
+                </div>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0" id="userTable">
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Storage Usage</th>
+                            <th>Created</th>
+                            <th>Last Login</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                        <tr>
+                            <td>{{ user.username }}</td>
+                            <td>{{ user.email }}</td>
+                            <td>
+                                <span class="badge {% if user.role == 'admin' %}bg-danger{% else %}bg-primary{% endif %}">
+                                    {{ user.role }}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="progress" style="height: 8px;">
+                                    <div class="progress-bar {% if user.get_storage_usage_percent() > 90 %}bg-danger{% elif user.get_storage_usage_percent() > 70 %}bg-warning{% else %}bg-success{% endif %}" 
+                                         role="progressbar" 
+                                         style="width: {{ user.get_storage_usage_percent() }}%;"
+                                         aria-valuenow="{{ user.get_storage_usage_percent() }}" 
+                                         aria-valuemin="0" 
+                                         aria-valuemax="100">
+                                    </div>
+                                </div>
+                                <small class="text-muted">{{ (user.storage_used / (1024*1024*1024))|round(2) }} GB / {{ (user.storage_quota / (1024*1024*1024))|round(2) }} GB</small>
+                            </td>
+                            <td>{{ user.created_at.strftime('%Y-%m-%d') }}</td>
+                            <td>{{ user.last_login.strftime('%Y-%m-%d %H:%M') if user.last_login else 'Never' }}</td>
+                            <td class="text-end">
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{{ url_for('admin.edit_user', user_id=user.id) }}" class="btn btn-primary">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <button type="button" class="btn btn-danger delete-user" data-user-id="{{ user.id }}" data-username="{{ user.username }}">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete User Modal -->
+<div class="modal fade" id="deleteUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-trash me-2"></i>Delete User</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete user <strong id="deleteUsername"></strong>?</p>
+                <p class="text-danger">This will permanently delete the user and all their files. This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="deleteUserForm" action="" method="POST">
+                    <button type="submit" class="btn btn-danger">Delete User</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // User search functionality
+        const userSearch = document.getElementById('userSearch');
+        const userTable = document.getElementById('userTable');
+        const tableRows = userTable.querySelectorAll('tbody tr');
+        
+        userSearch.addEventListener('keyup', function() {
+            const searchText = userSearch.value.toLowerCase();
+            
+            tableRows.forEach(row => {
+                const username = row.querySelector('td:first-child').textContent.toLowerCase();
+                const email = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+                
+                if (username.includes(searchText) || email.includes(searchText)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        });
+        
+        // Delete user modal
+        const deleteUserModal = document.getElementById('deleteUserModal');
+        const deleteUserButtons = document.querySelectorAll('.delete-user');
+        
+        deleteUserButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const userId = this.getAttribute('data-user-id');
+                const username = this.getAttribute('data-username');
+                
+                document.getElementById('deleteUsername').textContent = username;
+                document.getElementById('deleteUserForm').action = `/admin/users/delete/${userId}`;
+                
+                // Show modal
+                const modal = new bootstrap.Modal(deleteUserModal);
+                modal.show();
+            });
+        });
+    });
+</script>
+{% endblock %} 

@@ -1,0 +1,346 @@
+{% extends 'base.html' %}
+
+{% block title %}System Monitoring - Home Cloud Server{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-server me-2"></i>System Monitoring</h2>
+        <button type="button" class="btn btn-primary" id="refreshStats">
+            <i class="fas fa-sync-alt me-1"></i> Refresh Stats
+        </button>
+    </div>
+    
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="stat-card primary">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="stat-title">CPU Usage</div>
+                        <div class="stat-value">{{ cpu_percent }}%</div>
+                    </div>
+                    <div class="stat-icon">
+                        <i class="fas fa-microchip"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card success">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="stat-title">Memory Usage</div>
+                        <div class="stat-value">{{ memory.percent }}%</div>
+                    </div>
+                    <div class="stat-icon">
+                        <i class="fas fa-memory"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card warning">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="stat-title">Disk Usage</div>
+                        <div class="stat-value">{{ disk.percent }}%</div>
+                    </div>
+                    <div class="stat-icon">
+                        <i class="fas fa-hdd"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card info">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="stat-title">Network Traffic</div>
+                        <div class="stat-value">{{ (net_io_counters.bytes_recv / (1024*1024))|round(1) }} MB</div>
+                    </div>
+                    <div class="stat-icon">
+                        <i class="fas fa-network-wired"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Resource Usage Charts -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-microchip me-2"></i>CPU Usage</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="cpuChart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-memory me-2"></i>Memory Usage</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="memoryChart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Disk and Network Stats -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-hdd me-2"></i>Disk Usage</h5>
+                </div>
+                <div class="card-body">
+                    <div class="progress mb-3" style="height: 25px;">
+                        <div class="progress-bar {% if disk.percent > 90 %}bg-danger{% elif disk.percent > 70 %}bg-warning{% else %}bg-success{% endif %}" 
+                             role="progressbar" 
+                             style="width: {{ disk.percent }}%;" 
+                             aria-valuenow="{{ disk.percent }}" 
+                             aria-valuemin="0" 
+                             aria-valuemax="100">
+                            {{ disk.percent }}%
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="card bg-light mb-3">
+                                <div class="card-body text-center">
+                                    <h6 class="card-title text-muted">Total Space</h6>
+                                    <p class="card-text fw-bold">{{ (disk.total / (1024*1024*1024))|round(1) }} GB</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card bg-light mb-3">
+                                <div class="card-body text-center">
+                                    <h6 class="card-title text-muted">Used Space</h6>
+                                    <p class="card-text fw-bold">{{ (disk.used / (1024*1024*1024))|round(1) }} GB</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card bg-light mb-3">
+                                <div class="card-body text-center">
+                                    <h6 class="card-title text-muted">Free Space</h6>
+                                    <p class="card-text fw-bold">{{ (disk.free / (1024*1024*1024))|round(1) }} GB</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-network-wired me-2"></i>Network Statistics</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card bg-light mb-3">
+                                <div class="card-body text-center">
+                                    <h6 class="card-title text-muted">Bytes Received</h6>
+                                    <p class="card-text fw-bold">{{ (net_io_counters.bytes_recv / (1024*1024))|round(1) }} MB</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card bg-light mb-3">
+                                <div class="card-body text-center">
+                                    <h6 class="card-title text-muted">Bytes Sent</h6>
+                                    <p class="card-text fw-bold">{{ (net_io_counters.bytes_sent / (1024*1024))|round(1) }} MB</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card bg-light mb-3">
+                                <div class="card-body text-center">
+                                    <h6 class="card-title text-muted">Packets Received</h6>
+                                    <p class="card-text fw-bold">{{ net_io_counters.packets_recv }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card bg-light mb-3">
+                                <div class="card-body text-center">
+                                    <h6 class="card-title text-muted">Packets Sent</h6>
+                                    <p class="card-text fw-bold">{{ net_io_counters.packets_sent }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Running Processes -->
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-tasks me-2"></i>Top Processes</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>PID</th>
+                                    <th>Process Name</th>
+                                    <th>User</th>
+                                    <th>CPU Usage</th>
+                                    <th>Memory Usage</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for proc in processes %}
+                                <tr>
+                                    <td>{{ proc.pid }}</td>
+                                    <td>{{ proc.name }}</td>
+                                    <td>{{ proc.username }}</td>
+                                    <td>{{ proc.cpu_percent|round(1) }}%</td>
+                                    <td>{{ proc.memory_mb|round(1) }} MB ({{ proc.memory_percent|round(1) }}%)</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // CPU usage chart
+        const cpuCtx = document.getElementById('cpuChart').getContext('2d');
+        const cpuChart = new Chart(cpuCtx, {
+            type: 'line',
+            data: {
+                labels: ['Now', '-5s', '-10s', '-15s', '-20s', '-25s', '-30s', '-35s', '-40s', '-45s', '-50s', '-55s', '-60s'],
+                datasets: [{
+                    label: 'CPU Usage (%)',
+                    data: [{{ cpu_percent }}, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    backgroundColor: 'rgba(52, 152, 219, 0.2)',
+                    borderColor: 'rgba(52, 152, 219, 1)',
+                    borderWidth: 2,
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        ticks: {
+                            callback: function(value) {
+                                return value + '%';
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.parsed.y + '%';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        
+        // Memory usage chart
+        const memoryCtx = document.getElementById('memoryChart').getContext('2d');
+        const memoryChart = new Chart(memoryCtx, {
+            type: 'line',
+            data: {
+                labels: ['Now', '-5s', '-10s', '-15s', '-20s', '-25s', '-30s', '-35s', '-40s', '-45s', '-50s', '-55s', '-60s'],
+                datasets: [{
+                    label: 'Memory Usage (%)',
+                    data: [{{ memory.percent }}, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    backgroundColor: 'rgba(46, 204, 113, 0.2)',
+                    borderColor: 'rgba(46, 204, 113, 1)',
+                    borderWidth: 2,
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        ticks: {
+                            callback: function(value) {
+                                return value + '%';
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.parsed.y + '%';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        
+        // Real-time updates (simulated)
+        let cpuData = [{{ cpu_percent }}, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let memoryData = [{{ memory.percent }}, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        
+        // Simulate real-time data (would be replaced with actual AJAX calls)
+        function simulateData() {
+            // CPU data simulation
+            const newCpuValue = Math.max(5, Math.min(95, cpuData[0] + (Math.random() * 10 - 5)));
+            cpuData.pop();
+            cpuData.unshift(newCpuValue);
+            cpuChart.data.datasets[0].data = cpuData;
+            cpuChart.update();
+            
+            // Memory data simulation
+            const newMemValue = Math.max(10, Math.min(95, memoryData[0] + (Math.random() * 6 - 3)));
+            memoryData.pop();
+            memoryData.unshift(newMemValue);
+            memoryChart.data.datasets[0].data = memoryData;
+            memoryChart.update();
+        }
+        
+        // Update every 5 seconds
+        const dataInterval = setInterval(simulateData, 5000);
+        
+        // Refresh button
+        document.getElementById('refreshStats').addEventListener('click', function() {
+            location.reload();
+        });
+    });
+</script>
+{% endblock %} 

@@ -1,0 +1,54 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Python files
+*.py text diff=python
+
+# Documents
+*.md text
+*.txt text
+*.rst text
+LICENSE text
+
+# Templates
+*.html text
+*.css text
+*.js text
+
+# Serialization
+*.json text
+*.yaml text
+*.yml text
+
+# Images
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+
+# Exclude compiled translations
+*.mo binary
+
+# SQL files
+*.sql text
+
+# Denote all files that are truly binary and should not be modified
+*.db binary
+*.p binary
+*.pkl binary
+*.pyc binary
+*.pyd binary
+*.pyo binary
+
+# Binary files for uploads
+*.zip binary
+*.rar binary
+*.7z binary
+*.pdf binary
+*.doc binary
+*.docx binary
+*.xls binary
+*.xlsx binary
+*.mp3 binary
+*.mp4 binary 

@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Home Cloud Server{% endblock %}</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #2c3e50;
+            --accent-color: #e74c3c;
+            --success-color: #2ecc71;
+            --warning-color: #f39c12;
+            --info-color: #1abc9c;
+            --light-color: #ecf0f1;
+            --dark-color: #2c3e50;
+        }
+        
+        body {
+            background-color: #f8f9fa;
+            color: #333;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .navbar {
+            background-color: var(--secondary-color);
+        }
+        
+        .sidebar {
+            background-color: var(--secondary-color);
+            min-height: calc(100vh - 56px);
+            color: white;
+        }
+        
+        .sidebar .nav-link {
+            color: rgba(255, 255, 255, 0.8);
+            margin: 8px 0;
+            padding: 10px 15px;
+            border-radius: 5px;
+        }
+        
+        .sidebar .nav-link:hover,
+        .sidebar .nav-link.active {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+        
+        .sidebar .nav-link i {
+            margin-right: 10px;
+            width: 20px;
+            text-align: center;
+        }
+        
+        .content {
+            padding: 20px;
+            flex-grow: 1;
+        }
+        
+        .card {
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        
+        .card-header {
+            background-color: rgba(0, 0, 0, 0.03);
+            font-weight: bold;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        
+        .btn-primary:hover {
+            background-color: #2980b9;
+            border-color: #2980b9;
+        }
+        
+        .footer {
+            background-color: var(--secondary-color);
+            color: white;
+            text-align: center;
+            padding: 10px 0;
+            margin-top: auto;
+        }
+        
+        /* File list styles */
+        .file-item, .folder-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            transition: background-color 0.2s;
+        }
+        
+        .file-item:hover, .folder-item:hover {
+            background-color: rgba(52, 152, 219, 0.1);
+        }
+        
+        .file-icon, .folder-icon {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 15px;
+            font-size: 20px;
+        }
+        
+        .folder-icon {
+            color: #f39c12;
+        }
+        
+        .file-details, .folder-details {
+            flex-grow: 1;
+        }
+        
+        .file-name, .folder-name {
+            font-weight: 500;
+            margin-bottom: 3px;
+        }
+        
+        .file-meta, .folder-meta {
+            font-size: 12px;
+            color: #7f8c8d;
+        }
+        
+        .file-actions, .folder-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        /* Dashboard cards */
+        .stat-card {
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            color: white;
+        }
+        
+        .stat-card.primary {
+            background-color: var(--primary-color);
+        }
+        
+        .stat-card.success {
+            background-color: var(--success-color);
+        }
+        
+        .stat-card.warning {
+            background-color: var(--warning-color);
+        }
+        
+        .stat-card.danger {
+            background-color: var(--accent-color);
+        }
+        
+        .stat-card.info {
+            background-color: var(--info-color);
+        }
+        
+        .stat-card .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+        }
+        
+        .stat-card .stat-title {
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            letter-spacing: 1px;
+            opacity: 0.8;
+        }
+        
+        .stat-card .stat-icon {
+            font-size: 1.5rem;
+            opacity: 0.8;
+        }
+        
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .sidebar {
+                min-height: auto;
+            }
+        }
+    </style>
+    {% block styles %}{% endblock %}
+</head>
+<body>
+    <!-- Top Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-cloud"></i> Home Cloud Server
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    {% if session.get('user_id') %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-user-circle"></i> {{ session.get('username') }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="{{ url_for('auth.profile') }}"><i class="fas fa-id-card"></i> Profile</a></li>
+                            {% if session.get('role') == 'admin' %}
+                            <li><a class="dropdown-item" href="{{ url_for('admin.index') }}"><i class="fas fa-cogs"></i> Admin Dashboard</a></li>
+                            {% endif %}
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+                        </ul>
+                    </li>
+                    {% else %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('auth.login') }}"><i class="fas fa-sign-in-alt"></i> Login</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('auth.register') }}"><i class="fas fa-user-plus"></i> Register</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+    
+    <div class="container-fluid">
+        <div class="row">
+            {% if session.get('user_id') %}
+            <!-- Sidebar Navigation -->
+            <div class="col-md-3 col-lg-2 d-md-block sidebar collapse">
+                <div class="position-sticky pt-3">
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.endpoint == 'files.index' %}active{% endif %}" href="{{ url_for('files.index') }}">
+                                <i class="fas fa-folder"></i> My Files
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.endpoint == 'files.trash' %}active{% endif %}" href="{{ url_for('files.trash') }}">
+                                <i class="fas fa-trash-alt"></i> Recycle Bin
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.endpoint == 'files.transfer_history' %}active{% endif %}" href="{{ url_for('files.transfer_history') }}">
+                                <i class="fas fa-history"></i> Transfer History
+                            </a>
+                        </li>
+                        {% if session.get('role') == 'admin' %}
+                        <li class="nav-header mt-3 text-uppercase opacity-75 small ps-3">Admin</li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.endpoint == 'admin.index' %}active{% endif %}" href="{{ url_for('admin.index') }}">
+                                <i class="fas fa-tachometer-alt"></i> Dashboard
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.endpoint == 'admin.users' %}active{% endif %}" href="{{ url_for('admin.users') }}">
+                                <i class="fas fa-users"></i> User Management
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.endpoint == 'admin.system' %}active{% endif %}" href="{{ url_for('admin.system') }}">
+                                <i class="fas fa-server"></i> System Monitoring
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.endpoint == 'admin.settings' %}active{% endif %}" href="{{ url_for('admin.settings') }}">
+                                <i class="fas fa-cog"></i> Settings
+                            </a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+            <!-- Main Content -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 content">
+            {% else %}
+            <!-- Main Content (Full width when not logged in) -->
+            <main class="col-12 content">
+            {% endif %}
+                <!-- Flash Messages -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }} alert-dismissible fade show mt-3">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+                
+                <!-- Page Content -->
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+    
+    <!-- Footer -->
+    <footer class="footer mt-auto py-3">
+        <div class="container">
+            <span>&copy; {{ now().year }} Home Cloud Server. All rights reserved.</span>
+        </div>
+    </footer>
+    
+    <!-- Bootstrap Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Chart.js for statistics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Custom Scripts -->
+    {% block scripts %}{% endblock %}
+</body>
+</html> 
