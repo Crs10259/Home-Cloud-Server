@@ -5,7 +5,7 @@ class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or secrets.token_hex(16)
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
-    MAX_CONTENT_LENGTH = 1024 * 1024 * 1024  # 1GB max file size
+    MAX_CONTENT_LENGTH = 2000 * 1024 * 1024 * 1024  # 2GB max file size
     ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'mp4', 'mp3', 'doc', 'docx', 'xls', 'xlsx', 'zip', 'rar'}
     
     # Server configuration
@@ -28,16 +28,6 @@ class DevelopmentConfig(Config):
     DEBUG = True
     SQLALCHEMY_DATABASE_URI = os.environ.get('DEV_DATABASE_URL') or 'sqlite:///' + os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dev.db')
 
-class TestingConfig(Config):
-    TESTING = True
-    SQLALCHEMY_DATABASE_URI = os.environ.get('TEST_DATABASE_URL') or 'sqlite:///' + os.path.join(os.path.dirname(os.path.abspath(__file__)), 'test.db')
-
-class ProductionConfig(Config):
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///' + os.path.join(os.path.dirname(os.path.abspath(__file__)), 'prod.db')
-
 config = {
-    'development': DevelopmentConfig,
-    'testing': TestingConfig,
-    'production': ProductionConfig,
     'default': DevelopmentConfig
 } 

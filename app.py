@@ -20,7 +20,7 @@ def create_app(config_name='default'):
     initialize_db(app)
     
     # Initialize system monitoring
-    system_monitor = SystemMonitor(app, interval=300)  # Monitor every 5 minutes
+    SystemMonitor(app, interval=300)  # Monitor every 5 minutes
     
     # Create upload directory if it doesn't exist
     upload_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')

@@ -106,85 +106,73 @@ def upload_file():
     """Handle file upload, supporting both regular file and folder uploads"""
     user_id = session.get('user_id')
     is_folder_upload = request.form.get('is_folder_upload') == 'true'
-    
-    print(f"Upload request received: is_folder_upload={is_folder_upload}")
-    print(f"Form data: {request.form}")
-    
     folder_id = request.form.get('folder_id', type=int)
-    uploaded_files = request.files.getlist('files[]')
     
-    if not uploaded_files:
+    if not request.files.getlist('files[]'):
         flash('No files selected for upload', 'warning')
         return redirect(url_for('files.index'))
     
-    folder = None
+    # Get current folder
+    current_folder = None
     if folder_id:
-        folder = Folder.query.filter_by(id=folder_id, user_id=user_id).first()
+        current_folder = Folder.query.filter_by(id=folder_id, user_id=user_id).first()
+    if not current_folder:
+        current_folder = Folder.query.filter_by(user_id=user_id, parent_id=None).first()
+        if not current_folder:
+            current_folder = Folder(name='root', user_id=user_id)
+            db.session.add(current_folder)
+            db.session.commit()
     
     # Get max upload size from settings
     max_size_setting = SystemSetting.query.filter_by(key='max_upload_size').first()
-    max_size = 1024 * 1024 * 1024  # Default 1GB
-    if max_size_setting:
-        try:
-            max_size = int(max_size_setting.value)
-        except (ValueError, TypeError):
-            pass  # Use default if setting is invalid
+    max_size = int(max_size_setting.value) if max_size_setting else 2000 * 1024 * 1024 * 1024  # Default 2TB
     
     # Get user info
     user = User.query.get(user_id)
     
-    # Create uploads directory if it doesn't exist
-    upload_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'uploads', str(user_id))
-    if not os.path.exists(upload_dir):
-        os.makedirs(upload_dir)
+    # Create base upload directory if it doesn't exist
+    base_upload_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'uploads', str(user_id))
+    if not os.path.exists(base_upload_dir):
+        os.makedirs(base_upload_dir)
     
-    # Dictionary to keep track of created folders to avoid duplicates
+    # Dictionary to keep track of created folders
     created_folders = {}
     uploaded_count = 0
     error_count = 0
     
     # Process each uploaded file
-    for file in uploaded_files:
-        if not file.filename:
+    for uploaded_file in request.files.getlist('files[]'):
+        if not uploaded_file.filename:
             continue
-            
-        # Print the file information for debugging
-        print(f"Processing file: {file.filename}")
         
         try:
-            file_path = file.filename
+            # Get the relative path for folder uploads
+            relative_path = uploaded_file.filename
             
-            # Handle folder structure if this is a folder upload
-            parent_folder = folder
-            if is_folder_upload and '/' in file_path:
-                print(f"Folder upload file path: {file_path}")
-                
+            # Handle folder structure
+            parent_folder = current_folder
+            if is_folder_upload and '/' in relative_path:
                 # Split path into folder parts
-                path_parts = file_path.split('/')
+                path_parts = relative_path.split('/')
                 filename = path_parts.pop()  # Last part is the filename
                 
-                # Create folder structure if needed
+                # Create folder structure
                 current_path = ""
-                
                 for folder_name in path_parts:
-                    if not folder_name:  # Skip empty folder names (like from leading slash)
+                    if not folder_name:  # Skip empty folder names
                         continue
-                        
-                    # Build the current path as a key for our dictionary
-                    if current_path:
-                        current_path = f"{current_path}/{folder_name}"
-                    else:
-                        current_path = folder_name
+                    
+                    # Build current path for folder tracking
+                    current_path = os.path.join(current_path, folder_name) if current_path else folder_name
                     
                     # Check if we've already created this folder
                     if current_path in created_folders:
                         parent_folder = created_folders[current_path]
                     else:
-                        # Look for existing folder with this name
-                        parent_id = parent_folder.id if parent_folder else None
+                        # Check for existing folder
                         existing_folder = Folder.query.filter_by(
-                            name=folder_name, 
-                            parent_id=parent_id,
+                            name=folder_name,
+                            parent_id=parent_folder.id,
                             user_id=user_id,
                             is_deleted=False
                         ).first()
@@ -195,64 +183,66 @@ def upload_file():
                             # Create new folder
                             new_folder = Folder(
                                 name=folder_name,
-                                parent_id=parent_id,
+                                parent_id=parent_folder.id,
                                 user_id=user_id
                             )
                             db.session.add(new_folder)
                             db.session.flush()  # Get the ID without committing
                             parent_folder = new_folder
-                            
-                        # Store in our dictionary
+                        
                         created_folders[current_path] = parent_folder
-                
-                # Now parent_folder is the deepest folder in the path
             else:
-                filename = os.path.basename(file_path)
-                
-            # Check if file with same name already exists in this folder
-            folder_id = parent_folder.id if parent_folder else None
+                filename = os.path.basename(relative_path)
+            
+            # Check if file with same name exists
             existing_file = File.query.filter_by(
                 original_filename=filename,
-                folder_id=folder_id,
+                folder_id=parent_folder.id,
                 user_id=user_id,
                 is_deleted=False
             ).first()
             
             if existing_file:
-                # Add a timestamp to make filename unique
+                # Add timestamp to make filename unique
                 name_parts = os.path.splitext(filename)
                 timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
                 filename = f"{name_parts[0]}_{timestamp}{name_parts[1]}"
             
-            # Check if file type is allowed
+            # Check file type
             if not allowed_file(filename):
                 flash(f'File type not allowed: {filename}', 'danger')
                 error_count += 1
                 continue
-                
+            
             # Get file size
-            file.seek(0, os.SEEK_END)
-            file_size = file.tell()
-            file.seek(0)
+            uploaded_file.seek(0, os.SEEK_END)
+            file_size = uploaded_file.tell()
+            uploaded_file.seek(0)
             
             # Check file size
             if file_size > max_size:
                 flash(f'File too large: {filename}', 'danger')
                 error_count += 1
                 continue
-                
+            
             # Check user quota
             if not user.has_space_for_file(file_size):
                 flash('Not enough storage space', 'danger')
                 error_count += 1
                 break
-                
+            
             # Generate unique filename for storage
             storage_filename = f"{uuid.uuid4().hex}_{secure_filename(filename)}"
-            save_path = os.path.join(upload_dir, storage_filename)
+            
+            # Create folder structure in storage if needed
+            folder_path = os.path.join(base_upload_dir, str(parent_folder.id))
+            if not os.path.exists(folder_path):
+                os.makedirs(folder_path)
+            
+            save_path = os.path.join(folder_path, storage_filename)
             
             # Save the file
-            file.save(save_path)
+            uploaded_file.save(save_path)
             
             # Create file record
             file_type = get_file_type(filename)
@@ -263,7 +253,7 @@ def upload_file():
                 size=file_size,
                 file_type=file_type,
                 user_id=user_id,
-                folder_id=folder_id
+                folder_id=parent_folder.id
             )
             
             db.session.add(new_file)
@@ -272,12 +262,11 @@ def upload_file():
             user.storage_used += file_size
             
             # Log activity
-            from app.models.activity import Activity
             activity = Activity(
                 user_id=user_id,
                 action='upload',
                 target=filename,
-                details=f'Uploaded to folder ID {folder_id}',
+                details=f'Uploaded to folder {parent_folder.name}',
                 file_size=file_size,
                 file_type=file_type
             )
@@ -286,12 +275,18 @@ def upload_file():
             uploaded_count += 1
             
         except Exception as e:
-            print(f"Error uploading file {file.filename}: {str(e)}")
+            print(f"Error uploading file {uploaded_file.filename}: {str(e)}")
             error_count += 1
             continue
     
     # Commit all changes
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error committing changes: {str(e)}")
+        flash('Error saving files to database', 'danger')
+        return redirect(url_for('files.index'))
     
     # Show appropriate message
     if uploaded_count == 0:
