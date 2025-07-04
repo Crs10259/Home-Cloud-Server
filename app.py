@@ -47,9 +47,9 @@ if __name__ == '__main__':
             except Exception as e:
                 print(f"Error loading SSL certificates: {e}")
                 print("Running without HTTPS. Please check your SSL configuration.")
-                app.run(debug=app.config.get('DEBUG', False), 
-                        host=server_host, 
-                        port=server_port)
+            app.run(debug=app.config.get('DEBUG', False), 
+                    host=server_host, 
+                    port=server_port)
     else:
         app.run(debug=app.config.get('DEBUG', False), 
                 host=server_host, 
