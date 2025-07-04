@@ -7,8 +7,9 @@ from werkzeug.security import generate_password_hash
 import os
 
 def initialize_db(app):
+    db.init_app(app)
+    
     with app.app_context():
-        db.init_app(app)
         db.create_all()
         
         # Check if admin user already exists
@@ -45,4 +46,4 @@ def initialize_db(app):
             
             db.session.commit()
         
-        return True 
+        return db 

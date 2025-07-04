@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from app.models.user import db, User
 from app.models.file import File, Folder
 from app.models.system import SystemSetting
+from app.models.activity import Activity
 from app.routes.auth import login_required
 from werkzeug.utils import secure_filename
 import os
@@ -311,7 +312,6 @@ def download_file(file_id):
     tracker = TransferSpeedTracker().start(file.size)
     
     # Track file access
-    from app.models.activity import Activity
     activity = Activity(
         user_id=user_id,
         action='download',
@@ -432,7 +432,6 @@ def restore_file(file_id):
     print(f"File restored from trash: {file.original_filename}")
     
     # Log activity
-    from app.models.activity import Activity
     activity = Activity(
         user_id=user_id,
         action='restore_file',
@@ -493,7 +492,6 @@ def restore_folder(folder_id):
     print(f"Folder restored from trash: {folder.name}, with {files_count} files and {folders_count} subfolders")
     
     # Log activity
-    from app.models.activity import Activity
     activity = Activity(
         user_id=user_id,
         action='restore_folder',
@@ -529,7 +527,6 @@ def delete_file(file_id):
         flash(f'File "{file.original_filename}" moved to trash', 'success')
     
     # Record activity
-    from app.models.activity import Activity
     action = 'permanent_delete' if file.is_deleted else 'trash'
     activity = Activity(
         user_id=user_id,
@@ -608,7 +605,6 @@ def delete_folder(folder_id):
         flash(f'Folder "{folder.name}" moved to trash', 'success')
     
     # Record activity
-    from app.models.activity import Activity
     action = 'permanent_delete_folder' if folder.is_deleted else 'trash_folder'
     activity = Activity(
         user_id=user_id,
@@ -639,7 +635,6 @@ def empty_trash():
     db.session.commit()
     
     # Record activity
-    from app.models.activity import Activity
     activity = Activity(
         user_id=user_id,
         action='empty_trash',
@@ -780,7 +775,6 @@ def transfer_history():
     date_to = request.args.get('date_to')
     
     # Build query
-    from app.models.activity import Activity
     query = Activity.query.filter_by(user_id=user_id)
     
     # Filter by action type
@@ -889,7 +883,6 @@ def batch_restore():
     db.session.commit()
     
     # 记录活动
-    from app.models.activity import Activity
     activity = Activity(
         user_id=user_id,
         action='batch_restore',
@@ -952,7 +945,6 @@ def batch_delete():
     db.session.commit()
     
     # Log the activity
-    from app.models.activity import Activity
     activity_details = {
         'files_count': deleted_files,
         'folders_count': deleted_folders
@@ -1028,7 +1020,6 @@ def download_folder(folder_id):
     total_size = sum(file.size for file in files_in_folder)
     
     # Track download activity
-    from app.models.activity import Activity
     activity = Activity(
         user_id=user_id,
         action='download_folder',
