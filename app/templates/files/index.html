@@ -48,7 +48,7 @@
                             <small class="text-muted">{{ (storage_used / (1024*1024*1024))|round(2) }} GB of {{ (storage_quota / (1024*1024*1024))|round(2) }} GB used</small>
                         </div>
                         <div class="col-md-3 text-end">
-                            <form action="" method="GET" class="search-form">
+                            <form action="{{ url_for('files.search_files') }}" method="GET" class="search-form">
                                 <div class="input-group">
                                     <input type="text" name="query" class="form-control" placeholder="Search files...">
                                     <button class="btn btn-primary" type="submit"><i class="fas fa-search"></i></button>
