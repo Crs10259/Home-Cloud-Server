@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, send_file, session
+from flask import Blueprint, current_app, render_template, request, redirect, url_for, flash, jsonify, send_file, session
 from app.models.user import db, User
 from app.models.file import File, Folder
 from app.models.system import SystemSetting
@@ -14,7 +14,7 @@ from flask import after_this_request
 import json
 import zipfile
 import io
-import shutil
+from app.utils.transfer_tracker import TransferSpeedTracker
 
 files = Blueprint('files', __name__)
 
@@ -86,11 +86,14 @@ def index():
     subfolders = Folder.query.filter_by(parent_id=current_folder.id, user_id=user_id, is_deleted=False).all()
     files = File.query.filter_by(folder_id=current_folder.id, user_id=user_id, is_deleted=False).all()
     
-    # Get user's storage info
+    # Get user's storage info and refresh usage to ensure accuracy
     user = User.query.get(user_id)
-    storage_used = user.storage_used
+    storage_used = user.update_storage_used()
     storage_quota = user.storage_quota
     storage_percent = (storage_used / storage_quota) * 100 if storage_quota > 0 else 100
+    
+    # Fetch all folders for move-to selection (excluding deleted)
+    all_folders = Folder.query.filter_by(user_id=user_id, is_deleted=False).all()
     
     return render_template('files/index.html', 
                           current_folder=current_folder,
@@ -99,7 +102,8 @@ def index():
                           files=files,
                           storage_used=storage_used,
                           storage_quota=storage_quota,
-                          storage_percent=storage_percent)
+                          storage_percent=storage_percent,
+                          all_folders=all_folders)
 
 @files.route('/files/upload', methods=['POST'])
 @login_required
@@ -130,11 +134,6 @@ def upload_file():
     
     # Get user info
     user = User.query.get(user_id)
-    
-    # Create base upload directory if it doesn't exist
-    base_upload_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'uploads', str(user_id))
-    if not os.path.exists(base_upload_dir):
-        os.makedirs(base_upload_dir)
     
     # Dictionary to keep track of created folders
     created_folders = {}
@@ -236,7 +235,7 @@ def upload_file():
             storage_filename = f"{uuid.uuid4().hex}_{secure_filename(filename)}"
             
             # Create folder structure in storage if needed
-            folder_path = os.path.join(base_upload_dir, str(parent_folder.id))
+            folder_path = os.path.join(current_app.config['UPLOAD_FOLDER'], str(parent_folder.id))
             if not os.path.exists(folder_path):
                 os.makedirs(folder_path)
             
@@ -303,15 +302,11 @@ def upload_file():
 @login_required
 def download_file(file_id):
     """Download a file with speed tracking"""
-    from app.utils.transfer_tracker import TransferSpeedTracker
     
     user_id = session.get('user_id')
     file = File.query.filter_by(id=file_id, user_id=user_id, is_deleted=False).first_or_404()
     
-    # Create transfer tracker
-    tracker = TransferSpeedTracker().start(file.size)
-    
-    # Track file access
+    # Record activity upfront (duration and speed to be filled after response)
     activity = Activity(
         user_id=user_id,
         action='download',
@@ -321,30 +316,18 @@ def download_file(file_id):
     )
     db.session.add(activity)
     db.session.commit()
-    
-    # Create a tracking wrapper for the file
-    def generate():
-        with open(file.file_path, 'rb') as f:
-            chunk_size = 8192  # 8KB chunks
-            while True:
-                chunk = f.read(chunk_size)
-                if not chunk:
-                    break
-                tracker.update(len(chunk))
-                yield chunk
-    
-    # Update tracker after download completes
+
+    start_time = time.time()
+
     @after_this_request
     def update_metrics(response):
-        metrics = tracker.stop()
-        if metrics:
-            # Update activity with metrics
-            activity.duration = metrics['duration']
-            activity.transfer_speed = metrics['speed']
-            db.session.commit()
+        duration = max(time.time() - start_time, 0.0001)  # avoid division by zero
+        speed = file.size / duration
+        activity.duration = duration
+        activity.transfer_speed = speed
+        db.session.commit()
         return response
-    
-    # Send the actual file directly instead of the generator
+
     return send_file(
         file.file_path,
         mimetype='application/octet-stream',
@@ -366,8 +349,8 @@ def trash():
     folder_structures = []
     for folder in deleted_folders:
         # Get immediate children
-        subfolders = Folder.query.filter_by(parent_id=folder.id, is_deleted=True).all()
-        folder_files = File.query.filter_by(folder_id=folder.id, is_deleted=True).all()
+        # subfolders = Folder.query.filter_by(parent_id=folder.id, is_deleted=True).all()
+        # folder_files = File.query.filter_by(folder_id=folder.id, is_deleted=True).all()
         
         # Function to recursively get all subfolders
         def get_subfolder_tree(parent_folder):
@@ -391,9 +374,9 @@ def trash():
     # Calculate trash size
     trash_size = sum(file.size for file in deleted_files)
     
-    # Get user's storage info for context
+    # Get user's storage info for context (recalculate to ensure up-to-date)
     user = User.query.get(user_id)
-    storage_used = user.storage_used
+    storage_used = user.update_storage_used()
     storage_quota = user.storage_quota
     storage_percent = (storage_used / storage_quota) * 100 if storage_quota > 0 else 100
     
@@ -428,6 +411,18 @@ def restore_file(file_id):
     
     # Restore file
     file.restore_from_trash()
+    
+    # If parent folder (or any ancestor) is still deleted, restore it as well
+    def restore_parent_folders(folder_id):
+        if folder_id is None:
+            return
+        parent_folder = Folder.query.filter_by(id=folder_id).first()
+        if parent_folder and parent_folder.is_deleted:
+            parent_folder.restore_from_trash()
+            restore_parent_folders(parent_folder.parent_id)
+
+    restore_parent_folders(file.folder_id)
+    
     db.session.commit()
     print(f"File restored from trash: {file.original_filename}")
     
@@ -513,6 +508,7 @@ def delete_file(file_id):
     """Move file to trash or permanently delete if already in trash"""
     user_id = session.get('user_id')
     file = File.query.filter_by(id=file_id, user_id=user_id).first_or_404()
+    user = User.query.get(user_id)
     
     if file.is_deleted:
         # Permanently delete
@@ -520,12 +516,14 @@ def delete_file(file_id):
         file.permanently_delete()
         db.session.commit()
         flash(f'File "{file_name}" permanently deleted', 'success')
-    else:
+    else:   
         # Move to trash
         file.move_to_trash()
+        # Update user's storage usage
+        user.storage_used -= file.size
         db.session.commit()
         flash(f'File "{file.original_filename}" moved to trash', 'success')
-    
+
     # Record activity
     action = 'permanent_delete' if file.is_deleted else 'trash'
     activity = Activity(
@@ -537,6 +535,10 @@ def delete_file(file_id):
     )
     db.session.add(activity)
     db.session.commit()
+    
+    # Recalculate user's storage usage
+    if user:
+        user.update_storage_used()
     
     return redirect(request.referrer or url_for('files.index'))
 
@@ -580,19 +582,24 @@ def delete_folder(folder_id):
     else:
         # Move to trash
         folder.move_to_trash()
+        user = User.query.get(user_id)
+        total_moved_size = 0
         
         # Also mark all contained files as deleted
         for file in File.query.filter_by(folder_id=folder.id, is_deleted=False).all():
+            total_moved_size += file.size
             file.move_to_trash()
         
         # And all subfolders
         def trash_subfolders_recursively(parent_id):
+            nonlocal total_moved_size
             subfolders = Folder.query.filter_by(parent_id=parent_id, is_deleted=False).all()
             for subfolder in subfolders:
                 subfolder.move_to_trash()
                 
                 # Move all files in subfolder to trash
                 for file in File.query.filter_by(folder_id=subfolder.id, is_deleted=False).all():
+                    total_moved_size += file.size
                     file.move_to_trash()
                 
                 # Recursively handle sub-subfolders
@@ -600,6 +607,12 @@ def delete_folder(folder_id):
         
         # Execute recursive trash operation
         trash_subfolders_recursively(folder.id)
+        
+        # Deduct storage usage
+        if user:
+            user.storage_used = max(user.storage_used - total_moved_size, 0)
+            # Ensure consistency using helper
+            user.update_storage_used()
         
         db.session.commit()
         flash(f'Folder "{folder.name}" moved to trash', 'success')
@@ -613,6 +626,10 @@ def delete_folder(folder_id):
     )
     db.session.add(activity)
     db.session.commit()
+    
+    # Recalculate user's storage usage
+    if user:
+        user.update_storage_used()
     
     return redirect(request.referrer or url_for('files.index'))
 
@@ -642,6 +659,11 @@ def empty_trash():
     )
     db.session.add(activity)
     db.session.commit()
+    
+    # Recalculate user's storage usage
+    user = User.query.get(user_id)
+    if user:
+        user.update_storage_used()
     
     flash('Trash emptied successfully', 'success')
     return redirect(url_for('files.trash'))
@@ -829,7 +851,7 @@ def transfer_history():
 @files.route('/files/batch_restore', methods=['POST'])
 @login_required
 def batch_restore():
-    """批量恢复选中的文件和文件夹"""
+    """Batch restore selected files and folders"""
     user_id = session.get('user_id')
     selected_items = request.form.getlist('selected_items[]')
     
@@ -841,48 +863,58 @@ def batch_restore():
     restored_folders = 0
     
     for item in selected_items:
-        # 分割类型和ID
+        # Split type and ID
         item_type, item_id = item.split('-', 1)
         item_id = int(item_id)
         
         if item_type == 'file':
-            # 恢复文件
+            # Restore file
             file = File.query.filter_by(id=item_id, user_id=user_id, is_deleted=True).first()
             if file:
                 file.restore_from_trash()
+                # Ensure parent folders are restored
+                def restore_parents(fid):
+                    if fid is None:
+                        return
+                    pf = Folder.query.filter_by(id=fid).first()
+                    if pf and pf.is_deleted:
+                        pf.restore_from_trash()
+                        restore_parents(pf.parent_id)
+
+                restore_parents(file.folder_id)
                 restored_files += 1
                 
         elif item_type == 'folder':
-            # 恢复文件夹及其内容
+            # Restore folder and its contents
             folder = Folder.query.filter_by(id=item_id, user_id=user_id, is_deleted=True).first()
             if folder:
-                # 恢复文件夹
+                # Restore folder
                 folder.restore_from_trash()
                 
-                # 恢复文件夹中的文件
+                # Restore files in folder
                 for file in File.query.filter_by(folder_id=folder.id, is_deleted=True).all():
                     file.restore_from_trash()
                 
-                # 递归恢复子文件夹及其内容
+                # Recursively restore subfolders and their contents
                 def restore_subfolders(parent_id):
                     subfolders = Folder.query.filter_by(parent_id=parent_id, is_deleted=True).all()
                     for subfolder in subfolders:
                         subfolder.restore_from_trash()
                         
-                        # 恢复子文件夹中的文件
+                        # Restore files in subfolder
                         for file in File.query.filter_by(folder_id=subfolder.id, is_deleted=True).all():
                             file.restore_from_trash()
                         
-                        # 递归恢复下一级子文件夹
+                        # Recursively restore next level of subfolders
                         restore_subfolders(subfolder.id)
                 
-                # 执行递归恢复
+                # Execute recursive restoration
                 restore_subfolders(folder.id)
                 restored_folders += 1
     
     db.session.commit()
     
-    # 记录活动
+    # Log activity
     activity = Activity(
         user_id=user_id,
         action='batch_restore',
@@ -944,6 +976,11 @@ def batch_delete():
     
     db.session.commit()
     
+    # Recalculate user's storage usage
+    user = User.query.get(user_id)
+    if user:
+        user.update_storage_used()
+    
     # Log the activity
     activity_details = {
         'files_count': deleted_files,
@@ -971,8 +1008,6 @@ def batch_delete():
 @login_required
 def download_folder(folder_id):
     """Download a folder as zip file with all its contents"""
-    from app.utils.transfer_tracker import TransferSpeedTracker
-    
     user_id = session.get('user_id')
     folder = Folder.query.filter_by(id=folder_id, user_id=user_id, is_deleted=False).first_or_404()
     
@@ -980,8 +1015,6 @@ def download_folder(folder_id):
     memory_file = io.BytesIO()
     
     with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
-        # Get the base upload path
-        base_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'uploads', str(user_id))
         
         # Add files in root folder to zip
         files_in_folder = File.query.filter_by(folder_id=folder.id, user_id=user_id, is_deleted=False).all()
@@ -1039,4 +1072,87 @@ def download_folder(folder_id):
         mimetype='application/zip',
         as_attachment=True,
         download_name=download_name
-    ) 
+    )
+
+@files.route('/files/batch_move', methods=['POST'])
+@login_required
+def batch_move():
+    """Move selected files and folders to a destination folder"""
+    user_id = session.get('user_id')
+    selected_items = request.form.getlist('selected_items[]')
+    destination_id = request.form.get('destination_id', type=int)
+    
+    if destination_id is None:
+        flash('No destination folder selected', 'warning')
+        return redirect(request.referrer or url_for('files.index'))
+    
+    # Ensure destination folder exists and belongs to the user
+    destination_folder = Folder.query.filter_by(id=destination_id, user_id=user_id, is_deleted=False).first()
+    if not destination_folder:
+        flash('Destination folder not found', 'danger')
+        return redirect(request.referrer or url_for('files.index'))
+    
+    if not selected_items:
+        flash('No items selected', 'warning')
+        return redirect(request.referrer or url_for('files.index'))
+    
+    moved_files = 0
+    moved_folders = 0
+    skipped = 0
+    
+    # Helper to check if folder_a is descendant of folder_b
+    def is_descendant(folder_a_id, folder_b_id):
+        current = Folder.query.filter_by(id=folder_b_id).first()
+        while current and current.parent_id is not None:
+            if current.parent_id == folder_a_id:
+                return True
+            current = Folder.query.filter_by(id=current.parent_id).first()
+        return False
+    
+    for item in selected_items:
+        try:
+            item_type, item_id = item.split('-', 1)
+            item_id = int(item_id)
+        except ValueError:
+            continue
+        
+        if item_type == 'file':
+            file = File.query.filter_by(id=item_id, user_id=user_id, is_deleted=False).first()
+            if file and file.folder_id != destination_id:
+                file.folder_id = destination_id
+                file.updated_at = datetime.utcnow()
+                moved_files += 1
+        elif item_type == 'folder':
+            folder = Folder.query.filter_by(id=item_id, user_id=user_id, is_deleted=False).first()
+            # Prevent moving a folder into itself or its descendants
+            if folder and folder.id != destination_id and not is_descendant(folder.id, destination_id):
+                folder.parent_id = destination_id
+                folder.updated_at = datetime.utcnow()
+                moved_folders += 1
+            else:
+                skipped += 1
+    
+    db.session.commit()
+    
+    # Recalculate storage usage
+    user = User.query.get(user_id)
+    if user:
+        user.update_storage_used()
+    
+    # Log activity
+    details = {
+        'moved_files': moved_files,
+        'moved_folders': moved_folders,
+        'skipped': skipped,
+        'destination_id': destination_id
+    }
+    activity = Activity(
+        user_id=user_id,
+        action='batch_move',
+        details=json.dumps(details)
+    )
+    db.session.add(activity)
+    db.session.commit()
+    
+    flash(f'Moved {moved_files} files and {moved_folders} folders', 'success')
+    return redirect(url_for('files.index', folder_id=destination_id)) 

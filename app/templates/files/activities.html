@@ -1,55 +1,55 @@
 {% extends 'base.html' %}
 
-{% block title %}文件活动记录 - Home Cloud Server{% endblock %}
+{% block title %}File Activity Log - Home Cloud Server{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2><i class="fas fa-history me-2"></i>文件活动记录</h2>
+        <h2><i class="fas fa-history me-2"></i>File Activity Log</h2>
     </div>
     
-    <!-- 过滤选项 -->
+    <!-- Filter Options -->
     <div class="card mb-4">
         <div class="card-header">
-            <i class="fas fa-filter me-2"></i> 筛选选项
+            <i class="fas fa-filter me-2"></i> Filter Options
         </div>
         <div class="card-body">
             <form method="GET" action="{{ url_for('files.activities') }}" class="row g-3">
                 <div class="col-md-3">
-                    <label for="type" class="form-label">活动类型</label>
+                    <label for="type" class="form-label">Activity Type</label>
                     <select class="form-select" id="type" name="type">
-                        <option value="">所有类型</option>
+                        <option value="">All Types</option>
                         {% for type in activity_types %}
                         <option value="{{ type.value }}" {% if request.args.get('type') == type.value %}selected{% endif %}>{{ type.label }}</option>
                         {% endfor %}
                     </select>
                 </div>
                 <div class="col-md-3">
-                    <label for="date_from" class="form-label">开始日期</label>
+                    <label for="date_from" class="form-label">Start Date</label>
                     <input type="date" class="form-control" id="date_from" name="date_from" value="{{ request.args.get('date_from', '') }}">
                 </div>
                 <div class="col-md-3">
-                    <label for="date_to" class="form-label">结束日期</label>
+                    <label for="date_to" class="form-label">End Date</label>
                     <input type="date" class="form-control" id="date_to" name="date_to" value="{{ request.args.get('date_to', '') }}">
                 </div>
                 <div class="col-md-3 d-flex align-items-end">
                     <button type="submit" class="btn btn-primary me-2">
-                        <i class="fas fa-search me-1"></i> 筛选
+                        <i class="fas fa-search me-1"></i> Filter
                     </button>
                     <a href="{{ url_for('files.activities') }}" class="btn btn-secondary">
-                        <i class="fas fa-redo me-1"></i> 重置
+                        <i class="fas fa-redo me-1"></i> Reset
                     </a>
                 </div>
             </form>
         </div>
     </div>
     
-    <!-- 活动记录列表 -->
+    <!-- Activity Records List -->
     <div class="card shadow-sm">
         <div class="card-header">
             <div class="d-flex justify-content-between align-items-center">
-                <span><i class="fas fa-list me-2"></i>活动记录</span>
-                <span class="badge bg-primary">{{ activities.total }} 条记录</span>
+                <span><i class="fas fa-list me-2"></i>Activity Records</span>
+                <span class="badge bg-primary">{{ activities.total }} records</span>
             </div>
         </div>
         <div class="card-body p-0">
@@ -57,12 +57,12 @@
                 <table class="table table-hover table-striped mb-0">
                     <thead class="table-light">
                         <tr>
-                            <th>文件名</th>
-                            <th>活动类型</th>
-                            <th>文件大小</th>
-                            <th>用时</th>
-                            <th>速度</th>
-                            <th>时间</th>
+                            <th>Filename</th>
+                            <th>Type</th>
+                            <th>Size</th>
+                            <th>Duration</th>
+                            <th>Speed</th>
+                            <th>Timestamp</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -95,7 +95,7 @@
                                 {% else %}
                                 <span class="text-muted">
                                     {% if activity.activity_type == 'empty_trash' %}
-                                    <i class="fas fa-trash-alt text-danger me-1"></i> 清空回收站
+                                    <i class="fas fa-trash-alt text-danger me-1"></i> Empty Trash Bin
                                     {% else %}
                                     -
                                     {% endif %}
@@ -111,15 +111,15 @@
                                     {% elif activity.activity_type == 'restore' %}bg-info
                                     {% elif activity.activity_type == 'empty_trash' %}bg-danger
                                     {% else %}bg-secondary{% endif %}">
-                                    {% if activity.activity_type == 'upload' %}上传
-                                    {% elif activity.activity_type == 'download' %}下载
-                                    {% elif activity.activity_type == 'delete' %}删除
-                                    {% elif activity.activity_type == 'delete_permanent' %}永久删除
-                                    {% elif activity.activity_type == 'restore' %}恢复
-                                    {% elif activity.activity_type == 'move' %}移动
-                                    {% elif activity.activity_type == 'rename' %}重命名
-                                    {% elif activity.activity_type == 'share' %}分享
-                                    {% elif activity.activity_type == 'empty_trash' %}清空回收站
+                                    {% if activity.activity_type == 'upload' %}Upload
+                                    {% elif activity.activity_type == 'download' %}Download
+                                    {% elif activity.activity_type == 'delete' %}Delete
+                                    {% elif activity.activity_type == 'delete_permanent' %}Permanent Delete
+                                    {% elif activity.activity_type == 'restore' %}Restore
+                                    {% elif activity.activity_type == 'move' %}Move
+                                    {% elif activity.activity_type == 'rename' %}Rename
+                                    {% elif activity.activity_type == 'share' %}Share
+                                    {% elif activity.activity_type == 'empty_trash' %}Empty Trash
                                     {% else %}{{ activity.activity_type }}{% endif %}
                                 </span>
                             </td>
@@ -143,7 +143,7 @@
                                     {% if activity.duration < 1000 %}
                                         {{ activity.duration }} ms
                                     {% else %}
-                                        {{ (activity.duration / 1000)|round(2) }} 秒
+                                        {{ (activity.duration / 1000)|round(2) }} s
                                     {% endif %}
                                 {% else %}
                                 -
@@ -169,7 +169,7 @@
                 </table>
             </div>
             
-            <!-- 分页 -->
+            <!-- Pagination -->
             {% if activities.pages > 1 %}
             <div class="p-3">
                 <nav aria-label="Page navigation">
@@ -203,25 +203,25 @@
 {% block scripts %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // 用户友好的日期筛选器
+        // User-friendly date filter
         const dateFrom = document.getElementById('date_from');
         const dateTo = document.getElementById('date_to');
         
-        // 设置日期选择器的默认值
+        // Set default date filter values
         if (!dateFrom.value) {
             const lastMonth = new Date();
             lastMonth.setMonth(lastMonth.getMonth() - 1);
-            // dateFrom.valueAsDate = lastMonth; // 可选：默认显示一个月前的日期
+            // dateFrom.valueAsDate = lastMonth; // Optional: show date from one month ago
         }
         
-        // 当开始日期变化时，确保结束日期不早于开始日期
+        // When start date changes, ensure end date is not earlier than start date
         dateFrom.addEventListener('change', function() {
             if (dateTo.value && dateFrom.value > dateTo.value) {
                 dateTo.value = dateFrom.value;
             }
         });
         
-        // 当结束日期变化时，确保开始日期不晚于结束日期
+        // When end date changes, ensure start date is not later than end date
         dateTo.addEventListener('change', function() {
             if (dateFrom.value && dateTo.value < dateFrom.value) {
                 dateFrom.value = dateTo.value;

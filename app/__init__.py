@@ -27,11 +27,11 @@ def create_app(config_name='default'):
     # Initialize system monitoring
     SystemMonitor(app, interval=300)  # Monitor every 5 minutes
     
-    # Create upload directory if it doesn't exist
-    upload_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'uploads')
-    if not os.path.exists(upload_dir):
-        os.makedirs(upload_dir)
-    
+    # # Create upload directory if it doesn't exist
+    # upload_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'uploads')
+    # if not os.path.exists(upload_dir):
+    #     os.makedirs(upload_dir)
+
     # Register blueprints
     from app.routes.auth import auth as auth_blueprint
     from app.routes.files import files as files_blueprint

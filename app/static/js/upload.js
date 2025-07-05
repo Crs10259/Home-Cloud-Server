@@ -180,7 +180,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const k = 1024;
         const sizes = ['B', 'KB', 'MB', 'GB'];
         
-        // 对于非常小的值，直接显示字节
+        // For very small values, display bytes directly
         if (bytes < 1) return '0 B/s';
         
         const i = Math.floor(Math.log(bytes) / Math.log(k));

@@ -42,7 +42,7 @@ class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or secrets.token_hex(16)
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     UPLOAD_FOLDER = get_storage_path()
-    MAX_CONTENT_LENGTH = 2000 * 1024 * 1024 * 1024  # 2GB max file size
+    MAX_CONTENT_LENGTH = 20000 * 1024 * 1024 * 1024  # 20TB max file size
     ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'mp4', 'mp3', 
                          'doc', 'docx', 'xls', 'xlsx', 'zip', 'rar', 'md', 'py', 
                          'js', 'css', 'html', 'json', 'xml'}

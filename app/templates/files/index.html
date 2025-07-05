@@ -83,6 +83,9 @@
                                 <i class="fas fa-check-square me-1"></i> Select All
                             </button>
                             <div class="btn-group btn-group-sm d-none" id="batchActionsGroup">
+                                <button type="button" class="btn btn-primary" id="moveSelectedBtn">
+                                    <i class="fas fa-folder-open me-1"></i> Move Selected
+                                </button>
                                 <button type="button" class="btn btn-danger" id="deleteSelectedBtn">
                                     <i class="fas fa-trash me-1"></i> Delete Selected
                                 </button>
@@ -396,6 +399,34 @@
         </div>
     </div>
 </div>
+
+<!-- Move Items Modal -->
+<div class="modal fade" id="moveModal" tabindex="-1" aria-labelledby="moveModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="moveModalLabel"><i class="fas fa-folder-open me-2"></i>Move Items</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="moveForm" method="POST" action="{{ url_for('files.batch_move') }}">
+                    <div class="mb-3">
+                        <label for="destinationSelect" class="form-label">Select Destination Folder</label>
+                        <select class="form-select" id="destinationSelect" name="destination_id" required>
+                            {% for folder in all_folders %}
+                                <option value="{{ folder.id }}">{{ folder.name }}{% if folder.parent_id %} (ID: {{ folder.id }}){% endif %}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div id="selectedItemsContainer"></div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">Move</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -547,15 +578,36 @@
                 const xhr = new XMLHttpRequest();
                 xhr.open('POST', '{{ url_for("files.upload_file") }}', true);
                 
+                // Variables for real-time speed calculation
+                let lastLoaded = 0;
+                let lastTime = Date.now();
+                
                 // Track upload progress
                 xhr.upload.onprogress = function(e) {
                     if (e.lengthComputable) {
                         const percentComplete = (e.loaded / e.total) * 100;
+                        
+                        // Update total progress bar
                         totalProgressBar.style.width = percentComplete + '%';
                         totalProgressBar.textContent = Math.round(percentComplete) + '%';
                         
-                        // Update file count
+                        // Mirror the same percentage on the single-file bar
+                        fileProgressBar.style.width = percentComplete + '%';
+                        fileProgressBar.textContent = Math.round(percentComplete) + '%';
+                        
+                        // Update uploaded files count text
                         uploadedCount.textContent = `Uploading ${files.length} files`;
+                        
+                        // Calculate and display upload speed
+                        const currentTime = Date.now();
+                        const timeDiff = (currentTime - lastTime) / 1000; // seconds
+                        if (timeDiff > 0) {
+                            const bytesDiff = e.loaded - lastLoaded;
+                            const bytesPerSecond = bytesDiff / timeDiff;
+                            uploadSpeed.textContent = formatSpeed(bytesPerSecond);
+                            lastLoaded = e.loaded;
+                            lastTime = currentTime;
+                        }
                     }
                 };
                 
@@ -604,6 +656,7 @@
         const batchActionsGroup = document.getElementById('batchActionsGroup');
         const batchOperationsForm = document.getElementById('batchOperationsForm');
         const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
+        const moveSelectedBtn = document.getElementById('moveSelectedBtn');
         
         function updateBatchActionsVisibility() {
             const checkedBoxes = document.querySelectorAll('.item-select:checked');
@@ -661,6 +714,31 @@
                     document.getElementById('batchAction').value = 'delete';
                     batchOperationsForm.submit();
                 }
+            });
+        }
+        
+        // Handle move selected button
+        if (moveSelectedBtn) {
+            moveSelectedBtn.addEventListener('click', function() {
+                const checkedBoxes = document.querySelectorAll('.item-select:checked');
+                if (checkedBoxes.length === 0) {
+                    alert('Please select items to move');
+                    return;
+                }
+                // Clear previous hidden inputs
+                const container = document.getElementById('selectedItemsContainer');
+                container.innerHTML = '';
+                // Add hidden inputs for each selected item
+                checkedBoxes.forEach(cb => {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'selected_items[]';
+                    input.value = cb.value;
+                    container.appendChild(input);
+                });
+                // Show modal
+                const moveModal = new bootstrap.Modal(document.getElementById('moveModal'));
+                moveModal.show();
             });
         }
     });

@@ -12,25 +12,25 @@
                 </div>
                 <div class="card-body">
                     <div class="alert alert-success">
-                        <h4>服务器运行正常!</h4>
-                        <p>您的私人云存储服务已成功启动。</p>
+                        <h4>Server is running properly!</h4>
+                        <p>Your private cloud storage service has started successfully.</p>
                     </div>
                     
                     <div class="card my-4">
                         <div class="card-header bg-light">
-                            <h3 class="mb-0">当前配置</h3>
+                            <h3 class="mb-0">Current Configuration</h3>
                         </div>
                         <div class="card-body">
-                            <p><strong>主机:</strong> {{ config.SERVER_HOST }}</p>
-                            <p><strong>端口:</strong> {{ config.SERVER_PORT }}</p>
+                            <p><strong>Host:</strong> {{ config.SERVER_HOST }}</p>
+                            <p><strong>Port:</strong> {{ config.SERVER_PORT }}</p>
                             <p><strong>HTTPS:</strong> {{ config.USE_HTTPS }}</p>
                         </div>
                     </div>
                     
-                    <h3>测试链接</h3>
+                    <h3>Test Links</h3>
                     <div class="list-group">
-                        <a href="{{ url_for('about') }}" class="list-group-item list-group-item-action">关于页面</a>
-                        <a href="{{ url_for('test') }}" class="list-group-item list-group-item-action">API测试</a>
+                        <a href="{{ url_for('about') }}" class="list-group-item list-group-item-action">About Page</a>
+                        <a href="{{ url_for('test') }}" class="list-group-item list-group-item-action">API Test</a>
                     </div>
                 </div>
             </div>
