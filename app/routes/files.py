@@ -15,6 +15,7 @@ import json
 import zipfile
 import io
 from app.utils.transfer_tracker import TransferSpeedTracker
+import shutil  # 新增，用于磁盘空间检测
 
 files = Blueprint('files', __name__)
 
@@ -61,6 +62,16 @@ def get_file_type(filename):
         return 'archive'
     
     return 'other'
+
+def get_free_space(path):
+    """Return free space (in bytes) for the disk containing the given path"""
+    try:
+        usage = shutil.disk_usage(path)
+        return usage.free
+    except Exception as e:
+        print(f"Error getting free space for {path}: {e}")
+        # 如果无法获取，返回0表示空间不足
+        return 0
 
 @files.route('/files')
 @login_required
@@ -139,6 +150,20 @@ def upload_file():
     created_folders = {}
     uploaded_count = 0
     error_count = 0
+    
+    def direct_save_file(file_obj, save_path):
+        """Directly save file to target location without using temporary storage"""
+        try:
+            with open(save_path, 'wb') as f:
+                while True:
+                    chunk = file_obj.read(8192)  # Read in 8KB chunks
+                    if not chunk:
+                        break
+                    f.write(chunk)
+            return True
+        except Exception as e:
+            print(f"Error in direct_save_file: {str(e)}")
+            return False
     
     # Process each uploaded file
     for uploaded_file in request.files.getlist('files[]'):
@@ -241,41 +266,61 @@ def upload_file():
             
             save_path = os.path.join(folder_path, storage_filename)
             
-            # Save the file
-            uploaded_file.save(save_path)
-            
-            # Create file record
-            file_type = get_file_type(filename)
-            new_file = File(
-                filename=storage_filename,
-                original_filename=filename,
-                file_path=save_path,
-                size=file_size,
-                file_type=file_type,
-                user_id=user_id,
-                folder_id=parent_folder.id
-            )
-            
-            db.session.add(new_file)
-            
-            # Update user storage quota
-            user.storage_used += file_size
-            
-            # Log activity
-            activity = Activity(
-                user_id=user_id,
-                action='upload',
-                target=filename,
-                details=f'Uploaded to folder {parent_folder.name}',
-                file_size=file_size,
-                file_type=file_type
-            )
-            db.session.add(activity)
-            
-            uploaded_count += 1
+            # Decide whether to use temp cache or direct write
+            temp_dir = current_app.config.get('TEMP_UPLOAD_PATH')
+            use_temp_cache = False
+            if temp_dir and os.path.isdir(temp_dir):
+                free_space = get_free_space(temp_dir)
+                if free_space >= file_size + 10 * 1024 * 1024:  # 保留10MB余量
+                    use_temp_cache = True
+
+            try:
+                if use_temp_cache:
+                    # 使用本地缓存目录
+                    tmp_path = os.path.join(temp_dir, storage_filename)
+                    uploaded_file.save(tmp_path)
+                    shutil.move(tmp_path, save_path)
+                else:
+                    # 直接写入目标存储
+                    if not direct_save_file(uploaded_file, save_path):
+                        raise Exception('direct_save_file failed')
+
+                # Create file record
+                file_type = get_file_type(filename)
+                new_file = File(
+                    filename=storage_filename,
+                    original_filename=filename,
+                    file_path=save_path,
+                    size=file_size,
+                    file_type=file_type,
+                    user_id=user_id,
+                    folder_id=parent_folder.id
+                )
+                
+                db.session.add(new_file)
+                
+                # Update user storage quota
+                user.storage_used += file_size
+                
+                # Log activity
+                activity = Activity(
+                    user_id=user_id,
+                    action='upload',
+                    target=filename,
+                    details=f'Uploaded to folder {parent_folder.name}',
+                    file_size=file_size,
+                    file_type=file_type
+                )
+                db.session.add(activity)
+                
+                uploaded_count += 1
+            except Exception as e:
+                print(f"Error saving file {filename}: {str(e)}")
+                error_count += 1
+                continue
             
         except Exception as e:
-            print(f"Error uploading file {uploaded_file.filename}: {str(e)}")
+            print(f"Error processing file {uploaded_file.filename}: {str(e)}")
             error_count += 1
             continue
     
@@ -1007,68 +1052,103 @@ def batch_delete():
 @files.route('/files/download_folder/<int:folder_id>')
 @login_required
 def download_folder(folder_id):
-    """Download a folder as zip file with all its contents"""
+    """Download a folder as a zip file with all its contents.
+    根据本地缓存磁盘空间决定使用内存、缓存目录或直接在目标存储盘创建 zip。"""
+
     user_id = session.get('user_id')
     folder = Folder.query.filter_by(id=folder_id, user_id=user_id, is_deleted=False).first_or_404()
-    
-    # Create zip file in memory
-    memory_file = io.BytesIO()
-    
-    with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
-        
-        # Add files in root folder to zip
-        files_in_folder = File.query.filter_by(folder_id=folder.id, user_id=user_id, is_deleted=False).all()
-        for file in files_in_folder:
-            zf.write(file.file_path, file.original_filename)
-        
-        # Recursively add subfolders and their files
-        def add_folder_to_zip(current_folder, path_in_zip):
-            # Add files in current folder
-            files = File.query.filter_by(folder_id=current_folder.id, user_id=user_id, is_deleted=False).all()
-            for file in files:
-                # Add file to zip with path relative to the folder being downloaded
-                zf.write(file.file_path, os.path.join(path_in_zip, file.original_filename))
-            
-            # Add subfolders
-            subfolders = Folder.query.filter_by(parent_id=current_folder.id, user_id=user_id, is_deleted=False).all()
-            for subfolder in subfolders:
-                # Create subfolder path in zip
-                subfolder_path = os.path.join(path_in_zip, subfolder.name)
-                
-                # Add empty directory entry
-                zinfo = zipfile.ZipInfo(subfolder_path + '/')
-                zinfo.external_attr = 0o40775 << 16  # Unix directory permission bits
-                zf.writestr(zinfo, '')
-                
-                # Recursively add subfolder contents
-                add_folder_to_zip(subfolder, subfolder_path)
-        
-        # Start recursive addition from root folder
-        add_folder_to_zip(folder, '')
-    
-    # Reset file position to beginning
-    memory_file.seek(0)
-    
-    # Calculate approximate size of the zip file
-    total_size = sum(file.size for file in files_in_folder)
-    
-    # Track download activity
+
+    # 计算待打包的总大小（递归）
+    def calc_folder_size(cur_folder):
+        size = db.session.query(db.func.sum(File.size)).filter_by(folder_id=cur_folder.id, user_id=user_id, is_deleted=False).scalar() or 0
+        subfolders = Folder.query.filter_by(parent_id=cur_folder.id, user_id=user_id, is_deleted=False).all()
+        for sub in subfolders:
+            size += calc_folder_size(sub)
+        return size
+
+    total_size = calc_folder_size(folder)
+
+    temp_dir = current_app.config.get('TEMP_UPLOAD_PATH') or '/tmp'
+    free_space = get_free_space(temp_dir)
+
+    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+    download_name = f"{folder.name}_{timestamp}.zip"
+
+    # 如果本地缓存空间足够，使用 BytesIO（内存）或缓存目录
+    if free_space >= total_size + 20 * 1024 * 1024:  # 预留 20MB 余量
+        # 使用内存 BytesIO
+        memory_file = io.BytesIO()
+
+        with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
+            # 打包函数
+            def add_folder_to_zip(current_folder, path_in_zip):
+                files = File.query.filter_by(folder_id=current_folder.id, user_id=user_id, is_deleted=False).all()
+                for file in files:
+                    zf.write(file.file_path, os.path.join(path_in_zip, file.original_filename))
+
+                subfolders = Folder.query.filter_by(parent_id=current_folder.id, user_id=user_id, is_deleted=False).all()
+                for subfolder in subfolders:
+                    subfolder_path = os.path.join(path_in_zip, subfolder.name)
+                    # 添加空目录条目
+                    zinfo = zipfile.ZipInfo(subfolder_path + '/')
+                    zinfo.external_attr = 0o40775 << 16
+                    zf.writestr(zinfo, '')
+                    add_folder_to_zip(subfolder, subfolder_path)
+
+            add_folder_to_zip(folder, '')
+
+        memory_file.seek(0)
+
+        response_file = memory_file
+    else:
+        # 本地缓存不足，直接在目标存储盘创建 zip
+        folder_storage_path = os.path.join(current_app.config['UPLOAD_FOLDER'], str(folder.id))
+        if not os.path.exists(folder_storage_path):
+            os.makedirs(folder_storage_path, exist_ok=True)
+
+        temp_zip_path = os.path.join(folder_storage_path, download_name)
+
+        with zipfile.ZipFile(temp_zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+            def add_folder_to_zip_disk(current_folder, path_in_zip):
+                files = File.query.filter_by(folder_id=current_folder.id, user_id=user_id, is_deleted=False).all()
+                for file in files:
+                    zf.write(file.file_path, os.path.join(path_in_zip, file.original_filename))
+
+                subfolders = Folder.query.filter_by(parent_id=current_folder.id, user_id=user_id, is_deleted=False).all()
+                for subfolder in subfolders:
+                    subfolder_path = os.path.join(path_in_zip, subfolder.name)
+                    zinfo = zipfile.ZipInfo(subfolder_path + '/')
+                    zinfo.external_attr = 0o40775 << 16
+                    zf.writestr(zinfo, '')
+                    add_folder_to_zip_disk(subfolder, subfolder_path)
+
+            add_folder_to_zip_disk(folder, '')
+
+        # 在响应完成后删除临时 zip 文件
+        @after_this_request
+        def remove_temp_zip(response):
+            try:
+                if os.path.exists(temp_zip_path):
+                    os.remove(temp_zip_path)
+            except Exception as e:
+                print(f"Error removing temp zip {temp_zip_path}: {e}")
+            return response
+
+        response_file = temp_zip_path
+
+    # 记录下载活动
     activity = Activity(
         user_id=user_id,
         action='download_folder',
         target=folder.name,
         file_size=total_size,
-        details=f'Downloaded folder as zip'
+        details='Downloaded folder as zip'
     )
     db.session.add(activity)
     db.session.commit()
-    
-    # Set filename with timestamp to prevent caching
-    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-    download_name = f"{folder.name}_{timestamp}.zip"
-    
+
     return send_file(
-        memory_file,
+        response_file,
         mimetype='application/zip',
         as_attachment=True,
         download_name=download_name
