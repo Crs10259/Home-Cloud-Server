@@ -1,4 +1,4 @@
-from flask import Blueprint, current_app, render_template, request, redirect, url_for, flash, jsonify, send_file, session
+from flask import Blueprint, current_app, render_template, request, redirect, url_for, flash, jsonify, send_file, session, Response
 from app.models.user import db, User
 from app.models.file import File, Folder
 from app.models.system import SystemSetting
@@ -165,6 +165,15 @@ def upload_file():
             print(f"Error in direct_save_file: {str(e)}")
             return False
     
+    # Determine if we should force direct write based on system setting
+    direct_write_setting = SystemSetting.query.filter_by(key='direct_write_upload').first()
+    force_direct_write = False
+    if direct_write_setting:
+        try:
+            force_direct_write = bool(direct_write_setting.get_typed_value())
+        except Exception:
+            force_direct_write = False
+
     # Process each uploaded file
     for uploaded_file in request.files.getlist('files[]'):
         if not uploaded_file.filename:
@@ -267,12 +276,13 @@ def upload_file():
             save_path = os.path.join(folder_path, storage_filename)
             
             # Decide whether to use temp cache or direct write
-            temp_dir = current_app.config.get('TEMP_UPLOAD_PATH')
             use_temp_cache = False
-            if temp_dir and os.path.isdir(temp_dir):
-                free_space = get_free_space(temp_dir)
-                if free_space >= file_size + 10 * 1024 * 1024:  # 保留10MB余量
-                    use_temp_cache = True
+            if not force_direct_write:
+                temp_dir = current_app.config.get('TEMP_UPLOAD_PATH')
+                if temp_dir and os.path.isdir(temp_dir):
+                    free_space = get_free_space(temp_dir)
+                    if free_space >= file_size + 10 * 1024 * 1024:  # 保留10MB余量
+                        use_temp_cache = True
 
             try:
                 if use_temp_cache:
@@ -373,12 +383,25 @@ def download_file(file_id):
         db.session.commit()
         return response
 
-    return send_file(
+    # Determine mime type from filename for better browser handling
+    mime_type, _ = mimetypes.guess_type(file.original_filename)
+    if mime_type is None:
+        mime_type = 'application/octet-stream'
+
+    response = send_file(
         file.file_path,
-        mimetype='application/octet-stream',
+        mimetype=mime_type,
         as_attachment=True,
         download_name=file.original_filename
     )
+    # Ensure Content-Disposition includes both filename and filename* (UTF-8)
+    from urllib.parse import quote
+    ascii_filename = secure_filename(file.original_filename)
+    if not ascii_filename:
+        ascii_filename = 'download'
+    disposition = f"attachment; filename=\"{ascii_filename}\"; filename*=UTF-8''{quote(file.original_filename)}"
+    response.headers['Content-Disposition'] = disposition
+    return response
 
 @files.route('/files/trash')
 @login_required
@@ -1052,106 +1075,58 @@ def batch_delete():
 @files.route('/files/download_folder/<int:folder_id>')
 @login_required
 def download_folder(folder_id):
-    """Download a folder as a zip file with all its contents.
-    根据本地缓存磁盘空间决定使用内存、缓存目录或直接在目标存储盘创建 zip。"""
-
+    """Stream a folder as ZIP without waiting for full compression."""
+    import zipstream  # lazily import to avoid overhead if never used
     user_id = session.get('user_id')
     folder = Folder.query.filter_by(id=folder_id, user_id=user_id, is_deleted=False).first_or_404()
 
-    # 计算待打包的总大小（递归）
-    def calc_folder_size(cur_folder):
-        size = db.session.query(db.func.sum(File.size)).filter_by(folder_id=cur_folder.id, user_id=user_id, is_deleted=False).scalar() or 0
+    # Helper: recursively yield (filepath, arcname)
+    def iter_folder_files(cur_folder, path_in_zip=""):
+        # files in current folder
+        files = File.query.filter_by(folder_id=cur_folder.id, user_id=user_id, is_deleted=False).all()
+        for f in files:
+            arc = os.path.join(path_in_zip, f.original_filename)
+            yield f.file_path, arc, f.size, f.file_type
+        # subfolders
         subfolders = Folder.query.filter_by(parent_id=cur_folder.id, user_id=user_id, is_deleted=False).all()
         for sub in subfolders:
-            size += calc_folder_size(sub)
-        return size
+            sub_path = os.path.join(path_in_zip, sub.name)
+            # even if folder empty, ZipStream will include parent paths automatically when files present
+            yield from iter_folder_files(sub, sub_path)
 
-    total_size = calc_folder_size(folder)
+    # Stream zip
+    z = zipstream.ZipFile(mode='w', compression=zipfile.ZIP_DEFLATED)
 
-    temp_dir = current_app.config.get('TEMP_UPLOAD_PATH') or '/tmp'
-    free_space = get_free_space(temp_dir)
+    total_size = 0
+    for file_path, arcname, fsize, ftype in iter_folder_files(folder):
+        total_size += fsize
+        z.write(file_path, arcname)
 
     timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
     download_name = f"{folder.name}_{timestamp}.zip"
 
-    # 如果本地缓存空间足够，使用 BytesIO（内存）或缓存目录
-    if free_space >= total_size + 20 * 1024 * 1024:  # 预留 20MB 余量
-        # 使用内存 BytesIO
-        memory_file = io.BytesIO()
-
-        with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
-            # 打包函数
-            def add_folder_to_zip(current_folder, path_in_zip):
-                files = File.query.filter_by(folder_id=current_folder.id, user_id=user_id, is_deleted=False).all()
-                for file in files:
-                    zf.write(file.file_path, os.path.join(path_in_zip, file.original_filename))
-
-                subfolders = Folder.query.filter_by(parent_id=current_folder.id, user_id=user_id, is_deleted=False).all()
-                for subfolder in subfolders:
-                    subfolder_path = os.path.join(path_in_zip, subfolder.name)
-                    # 添加空目录条目
-                    zinfo = zipfile.ZipInfo(subfolder_path + '/')
-                    zinfo.external_attr = 0o40775 << 16
-                    zf.writestr(zinfo, '')
-                    add_folder_to_zip(subfolder, subfolder_path)
-
-            add_folder_to_zip(folder, '')
-
-        memory_file.seek(0)
-
-        response_file = memory_file
-    else:
-        # 本地缓存不足，直接在目标存储盘创建 zip
-        folder_storage_path = os.path.join(current_app.config['UPLOAD_FOLDER'], str(folder.id))
-        if not os.path.exists(folder_storage_path):
-            os.makedirs(folder_storage_path, exist_ok=True)
-
-        temp_zip_path = os.path.join(folder_storage_path, download_name)
-
-        with zipfile.ZipFile(temp_zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-            def add_folder_to_zip_disk(current_folder, path_in_zip):
-                files = File.query.filter_by(folder_id=current_folder.id, user_id=user_id, is_deleted=False).all()
-                for file in files:
-                    zf.write(file.file_path, os.path.join(path_in_zip, file.original_filename))
-
-                subfolders = Folder.query.filter_by(parent_id=current_folder.id, user_id=user_id, is_deleted=False).all()
-                for subfolder in subfolders:
-                    subfolder_path = os.path.join(path_in_zip, subfolder.name)
-                    zinfo = zipfile.ZipInfo(subfolder_path + '/')
-                    zinfo.external_attr = 0o40775 << 16
-                    zf.writestr(zinfo, '')
-                    add_folder_to_zip_disk(subfolder, subfolder_path)
-
-            add_folder_to_zip_disk(folder, '')
-
-        # 在响应完成后删除临时 zip 文件
-        @after_this_request
-        def remove_temp_zip(response):
-            try:
-                if os.path.exists(temp_zip_path):
-                    os.remove(temp_zip_path)
-            except Exception as e:
-                print(f"Error removing temp zip {temp_zip_path}: {e}")
-            return response
-
-        response_file = temp_zip_path
-
-    # 记录下载活动
+    # Log activity (size pre-zip)
     activity = Activity(
         user_id=user_id,
         action='download_folder',
         target=folder.name,
         file_size=total_size,
-        details='Downloaded folder as zip'
+        details='Streamed folder as zip'
     )
     db.session.add(activity)
     db.session.commit()
 
-    return send_file(
-        response_file,
+    from urllib.parse import quote
+    ascii_name = secure_filename(download_name) or 'download.zip'
+    disposition = f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(download_name)}"
+
+    return Response(
+        z,  # zipstream is iterable
         mimetype='application/zip',
-        as_attachment=True,
-        download_name=download_name
+        headers={
+            'Content-Disposition': disposition,
+            'Content-Type': 'application/zip'
+        }
     )
 
 @files.route('/files/batch_move', methods=['POST'])
@@ -1236,3 +1211,162 @@ def batch_move():
     
     flash(f'Moved {moved_files} files and {moved_folders} folders', 'success')
     return redirect(url_for('files.index', folder_id=destination_id)) 
+
+@files.route('/files/raw/<int:file_id>')
+@login_required
+def raw_file(file_id):
+    """Serve a file directly for inline preview (no attachment)."""
+    user_id = session.get('user_id')
+    file = File.query.filter_by(id=file_id, user_id=user_id, is_deleted=False).first_or_404()
+
+    # Determine MIME type for correct rendering in browser
+    mime_type, _ = mimetypes.guess_type(file.file_path)
+    if mime_type is None:
+        mime_type = 'application/octet-stream'
+
+    return send_file(file.file_path, mimetype=mime_type, as_attachment=False, download_name=file.original_filename)
+
+
+@files.route('/files/preview/<int:file_id>')
+@login_required
+def preview_file(file_id):
+    """Render a preview page for a given file."""
+    user_id = session.get('user_id')
+    file = File.query.filter_by(id=file_id, user_id=user_id, is_deleted=False).first_or_404()
+
+    return render_template('files/preview.html', file=file) 
+
+@files.route('/files/remote_download', methods=['POST'])
+@login_required
+def remote_download():
+    """Download a remote file directly into the user's cloud storage."""
+    import requests
+    from urllib.parse import urlparse, unquote
+
+    user_id = session.get('user_id')
+    file_url = request.form.get('file_url', '').strip()
+    folder_id = request.form.get('folder_id', type=int)
+
+    if not file_url or not (file_url.startswith('http://') or file_url.startswith('https://')):
+        flash('Invalid URL', 'danger')
+        return redirect(url_for('files.index'))
+
+    # Determine current folder
+    if folder_id:
+        current_folder = Folder.query.filter_by(id=folder_id, user_id=user_id).first()
+    else:
+        current_folder = Folder.query.filter_by(user_id=user_id, parent_id=None).first()
+    if not current_folder:
+        current_folder = Folder(name='root', user_id=user_id)
+        db.session.add(current_folder)
+        db.session.commit()
+
+    # Placeholder filename from URL path; will refine after HTTP headers
+    parsed = urlparse(file_url)
+    filename = unquote(os.path.basename(parsed.path)) or ''
+
+    # Get file type validation
+    # We will validate after finalizing filename
+
+    try:
+        with requests.get(file_url, stream=True, timeout=30) as r:
+            r.raise_for_status()
+
+            # Try to get filename from Content-Disposition header
+            cd_header = r.headers.get('Content-Disposition')
+            if cd_header:
+                from werkzeug.http import parse_options_header
+                _, params = parse_options_header(cd_header)
+                fname = params.get('filename') or params.get('filename*')
+                if fname:
+                    filename = unquote(fname.split("''")[-1])  # handle RFC5987
+
+            # If still no extension, try to derive from content-type
+            if '.' not in filename and r.headers.get('Content-Type'):
+                import mimetypes
+                ext = mimetypes.guess_extension(r.headers['Content-Type'].split(';')[0].strip())
+                if ext:
+                    filename += ext
+
+            if not filename:
+                filename = 'downloaded_file'
+
+            # Validate extension now
+            if not allowed_file(filename):
+                flash('File type not allowed', 'danger')
+                return redirect(url_for('files.index'))
+
+            # Try to get size
+            file_size = int(r.headers.get('Content-Length', 0))
+
+            # Quota check
+            user = User.query.get(user_id)
+            if file_size and not user.has_space_for_file(file_size):
+                flash('Not enough storage space', 'danger')
+                return redirect(url_for('files.index'))
+
+            # Check duplicate filename
+            existing_file = File.query.filter_by(
+                original_filename=filename,
+                folder_id=current_folder.id,
+                user_id=user_id,
+                is_deleted=False
+            ).first()
+            if existing_file:
+                name_prefix, ext = os.path.splitext(filename)
+                timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+                filename = f"{name_prefix}_{timestamp}{ext}"
+
+            # Prepare storage path
+            storage_filename = f"{uuid.uuid4().hex}_{secure_filename(filename)}"
+            folder_path = os.path.join(current_app.config['UPLOAD_FOLDER'], str(current_folder.id))
+            os.makedirs(folder_path, exist_ok=True)
+            save_path = os.path.join(folder_path, storage_filename)
+
+            # Write stream to file
+            with open(save_path, 'wb') as f:
+                for chunk in r.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+
+        # Final size if not known before
+        if not file_size:
+            file_size = os.path.getsize(save_path)
+            # Re-check quota edge case
+            user = User.query.get(user_id)
+            if not user.has_space_for_file(file_size):
+                os.remove(save_path)
+                flash('Not enough storage space', 'danger')
+                return redirect(url_for('files.index'))
+
+        # Record file in DB
+        file_type = get_file_type(filename)
+        new_file = File(
+            filename=storage_filename,
+            original_filename=filename,
+            file_path=save_path,
+            size=file_size,
+            file_type=file_type,
+            user_id=user_id,
+            folder_id=current_folder.id
+        )
+        db.session.add(new_file)
+        user.storage_used += file_size
+
+        # Activity log
+        activity = Activity(
+            user_id=user_id,
+            action='remote_download',
+            target=filename,
+            file_size=file_size,
+            file_type=file_type,
+            details=f'Downloaded from {file_url}'
+        )
+        db.session.add(activity)
+        db.session.commit()
+
+        flash('File downloaded successfully', 'success')
+    except Exception as e:
+        print(f"Remote download error: {e}")
+        flash('Failed to download file', 'danger')
+    return redirect(url_for('files.index', folder_id=current_folder.id)) 
