@@ -280,14 +280,14 @@
 {% block scripts %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // 添加事件监听器到所有恢复文件按钮
+        // Add event listeners to all restore file buttons
         document.querySelectorAll('form[action^="/files/restore/"]').forEach(form => {
             form.addEventListener('submit', function(e) {
                 e.preventDefault();
                 const submitUrl = this.action;
-                console.log("提交恢复文件请求: " + submitUrl);
+                console.log("Submitting file restore request: " + submitUrl);
                 
-                // 创建 fetch 请求
+                // Create fetch request
                 fetch(submitUrl, {
                     method: 'POST',
                     headers: {
@@ -297,10 +297,10 @@
                 })
                 .then(response => {
                     if (response.ok) {
-                        console.log("恢复文件成功");
+                        console.log("File restored successfully");
                         window.location.reload();
                     } else {
-                        console.error("恢复文件失败:", response.status);
+                        console.error("Failed to restore file:", response.status);
                         alert('Failed to restore file');
                     }
                 })
@@ -311,14 +311,14 @@
             });
         });
         
-        // 添加事件监听器到所有恢复文件夹按钮
+        // Add event listeners to all restore folder buttons
         document.querySelectorAll('form[action^="/files/restore_folder/"]').forEach(form => {
             form.addEventListener('submit', function(e) {
                 e.preventDefault();
                 const submitUrl = this.action;
-                console.log("提交恢复文件夹请求: " + submitUrl);
+                console.log("Submitting folder restore request: " + submitUrl);
                 
-                // 创建 fetch 请求
+                // Create fetch request
                 fetch(submitUrl, {
                     method: 'POST',
                     headers: {
@@ -328,10 +328,10 @@
                 })
                 .then(response => {
                     if (response.ok) {
-                        console.log("恢复文件夹成功");
+                        console.log("Folder restored successfully");
                         window.location.reload();
                     } else {
-                        console.error("恢复文件夹失败:", response.status);
+                        console.error("Failed to restore folder:", response.status);
                         alert('Failed to restore folder');
                     }
                 })
@@ -342,7 +342,7 @@
             });
         });
         
-        // 现有代码
+        // Existing code
         // Toggle folder contents
         document.querySelectorAll('.folder-icon[data-bs-toggle="collapse"]').forEach(folder => {
             folder.addEventListener('click', function() {

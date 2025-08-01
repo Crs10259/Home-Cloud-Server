@@ -37,6 +37,39 @@ class SystemMonitor:
                 self.start()
                 self._first_request_processed = True
     
+    def get_disk_usage(self):
+        """
+        Get total disk usage across all mounted partitions
+        """
+        total_size = 0
+        total_used = 0
+        total_free = 0
+        
+        # Get all mounted partitions
+        partitions = psutil.disk_partitions(all=False)
+        
+        for partition in partitions:
+            try:
+                usage = psutil.disk_usage(partition.mountpoint)
+                total_size += usage.total
+                total_used += usage.used
+                total_free += usage.free
+            except Exception:
+                continue
+        
+        # Calculate percentage
+        if total_size > 0:
+            usage_percent = (total_used / total_size) * 100
+        else:
+            usage_percent = 0
+        
+        return {
+            'total': total_size,
+            'used': total_used,
+            'free': total_free,
+            'percent': usage_percent
+        }
+    
     def collect_metrics(self):
         """
         Collect system metrics and save to database
@@ -46,11 +79,8 @@ class SystemMonitor:
             cpu_percent = psutil.cpu_percent(interval=1)
             memory = psutil.virtual_memory()
             
-            # Handle different OS disk paths
-            if platform.system() == "Windows":
-                disk = psutil.disk_usage("C:\\")
-            else:
-                disk = psutil.disk_usage("/")
+            # Get total disk usage
+            disk = self.get_disk_usage()
             
             net_io_counters = psutil.net_io_counters()
             
@@ -58,7 +88,7 @@ class SystemMonitor:
             new_metric = SystemMetric(
                 cpu_usage=cpu_percent,
                 memory_usage=memory.percent,
-                disk_usage=disk.percent,
+                disk_usage=disk['percent'],
                 network_rx=net_io_counters.bytes_recv,
                 network_tx=net_io_counters.bytes_sent,
                 active_connections=len(psutil.net_connections())

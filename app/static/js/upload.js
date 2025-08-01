@@ -32,6 +32,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Time tracking for speed calculation
         let startTime = Date.now();
+        let lastTime = Date.now();
         let lastLoaded = 0;
         let uploadSpeed = 0;
         let updateInterval;
@@ -88,7 +89,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (e.lengthComputable) {
                 const percentComplete = Math.round((e.loaded / e.total) * 100);
                 
-                // Update all progress bars (simplified - in a real app you'd track individual files)
+                // Update all progress bars
                 const progressBars = document.querySelectorAll('.progress-bar');
                 progressBars.forEach(bar => {
                     bar.style.width = percentComplete + '%';
@@ -97,19 +98,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Calculate upload speed
                 const currentTime = Date.now();
-                const timeElapsed = (currentTime - startTime) / 1000; // seconds
+                const timeDiff = (currentTime - lastTime) / 1000; // Convert to seconds
                 
-                if (timeElapsed > 0) {
+                if (timeDiff > 0) {
                     // Calculate speed in bytes per second
-                    uploadSpeed = (e.loaded - lastLoaded) / timeElapsed;
-                    lastLoaded = e.loaded;
-                    startTime = currentTime;
+                    const bytesDiff = e.loaded - lastLoaded;
+                    uploadSpeed = bytesDiff / timeDiff;
                     
                     // Update speed display
                     const speedDisplays = document.querySelectorAll('.upload-speed');
                     speedDisplays.forEach(display => {
                         display.textContent = `Upload speed: ${formatFileSize(uploadSpeed)}/s`;
                     });
+                    
+                    // Update for next calculation
+                    lastLoaded = e.loaded;
+                    lastTime = currentTime;
                 }
             }
         });
@@ -156,23 +160,31 @@ document.addEventListener('DOMContentLoaded', function() {
         xhr.open('POST', uploadForm.getAttribute('action'), true);
         xhr.send(formData);
         
-        // Update speed display every second
+        // Update speed display every 500ms instead of 1000ms for smoother updates
         updateInterval = setInterval(() => {
             const speedDisplays = document.querySelectorAll('.upload-speed');
             speedDisplays.forEach(display => {
-                display.textContent = `Upload speed: ${formatFileSize(uploadSpeed)}/s`;
+                if (uploadSpeed < 1) {
+                    display.textContent = `Upload speed: 0 B/s`;
+                } else {
+                    display.textContent = `Upload speed: ${formatFileSize(uploadSpeed)}`;
+                }
             });
-        }, 1000);
+        }, 500);
     });
     
     // Helper function to format file size
     function formatFileSize(bytes) {
-        if (bytes === 0) return '0 Bytes';
+        if (bytes === 0) return '0 B/s';
         
-        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(1024));
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
         
-        return parseFloat((bytes / Math.pow(1024, i)).toFixed(2)) + ' ' + sizes[i];
+        // For very small values, display bytes directly
+        if (bytes < 1) return '0 B/s';
+        
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i] + '/s';
     }
     
     // Helper function to show alerts

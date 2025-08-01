@@ -24,6 +24,9 @@
             <button type="button" class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#newFolderModal">
                 <i class="fas fa-folder-plus me-1"></i> New Folder
             </button>
+            <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#remoteDownloadModal">
+                <i class="fas fa-link me-1"></i> Remote Download
+            </button>
         </div>
     </div>
     
@@ -48,7 +51,7 @@
                             <small class="text-muted">{{ (storage_used / (1024*1024*1024))|round(2) }} GB of {{ (storage_quota / (1024*1024*1024))|round(2) }} GB used</small>
                         </div>
                         <div class="col-md-3 text-end">
-                            <form action="" method="GET" class="search-form">
+                            <form action="{{ url_for('files.search_files') }}" method="GET" class="search-form">
                                 <div class="input-group">
                                     <input type="text" name="query" class="form-control" placeholder="Search files...">
                                     <button class="btn btn-primary" type="submit"><i class="fas fa-search"></i></button>
@@ -83,6 +86,9 @@
                                 <i class="fas fa-check-square me-1"></i> Select All
                             </button>
                             <div class="btn-group btn-group-sm d-none" id="batchActionsGroup">
+                                <button type="button" class="btn btn-primary" id="moveSelectedBtn">
+                                    <i class="fas fa-folder-open me-1"></i> Move Selected
+                                </button>
                                 <button type="button" class="btn btn-danger" id="deleteSelectedBtn">
                                     <i class="fas fa-trash me-1"></i> Delete Selected
                                 </button>
@@ -189,6 +195,9 @@
                                         <td>{{ file.updated_at.strftime('%Y-%m-%d %H:%M') }}</td>
                                         <td class="text-end">
                                             <div class="btn-group btn-group-sm">
+                                                <a href="{{ url_for('files.preview_file', file_id=file.id) }}" class="btn btn-light">
+                                                    <i class="fas fa-eye"></i>
+                                                </a>
                                                 <a href="{{ url_for('files.download_file', file_id=file.id) }}" class="btn btn-light">
                                                     <i class="fas fa-download"></i>
                                                 </a>
@@ -396,6 +405,75 @@
         </div>
     </div>
 </div>
+
+<!-- Move Items Modal -->
+<div class="modal fade" id="moveModal" tabindex="-1" aria-labelledby="moveModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="moveModalLabel"><i class="fas fa-folder-open me-2"></i>Move Items</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="moveForm" method="POST" action="{{ url_for('files.batch_move') }}">
+                    <div class="mb-3">
+                        <label for="destinationSelect" class="form-label">Select Destination Folder</label>
+                        <select class="form-select" id="destinationSelect" name="destination_id" required>
+                            {% for folder in all_folders %}
+                                <option value="{{ folder.id }}">{{ folder.name }}{% if folder.parent_id %} (ID: {{ folder.id }}){% endif %}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div id="selectedItemsContainer"></div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">Move</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Remote Download Modal -->
+<div class="modal fade" id="remoteDownloadModal" tabindex="-1" aria-labelledby="remoteDownloadModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="remoteDownloadModalLabel"><i class="fas fa-link me-2"></i>Download from URL</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form action="{{ url_for('files.remote_download') }}" method="POST">
+                    <input type="hidden" name="folder_id" value="{{ current_folder.id }}">
+                    <div class="mb-3">
+                        <label for="file_url" class="form-label">File URL</label>
+                        <input type="url" class="form-control" id="file_url" name="file_url" placeholder="https://example.com/file.zip" required>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">Download</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Error Modal -->
+<div class="modal fade" id="errorModal" tabindex="-1" aria-labelledby="errorModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="errorModalTitle">错误</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="errorModalBody">
+        出现未知错误。
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -547,15 +625,40 @@
                 const xhr = new XMLHttpRequest();
                 xhr.open('POST', '{{ url_for("files.upload_file") }}', true);
                 
+                // Variables for real-time speed calculation
+                let lastLoaded = 0;
+                let lastTime = Date.now();
+                
                 // Track upload progress
                 xhr.upload.onprogress = function(e) {
                     if (e.lengthComputable) {
                         const percentComplete = (e.loaded / e.total) * 100;
+                        
+                        // Update total progress bar
                         totalProgressBar.style.width = percentComplete + '%';
                         totalProgressBar.textContent = Math.round(percentComplete) + '%';
                         
-                        // Update file count
+                        // Mirror the same percentage on the single-file bar
+                        fileProgressBar.style.width = percentComplete + '%';
+                        fileProgressBar.textContent = Math.round(percentComplete) + '%';
+                        
+                        // Update uploaded files count text
                         uploadedCount.textContent = `Uploading ${files.length} files`;
+                        
+                        // Calculate and display upload speed
+                        const currentTime = Date.now();
+                        const timeDiff = (currentTime - lastTime) / 1000; // seconds
+                        if (timeDiff > 0) {
+                            const bytesDiff = e.loaded - lastLoaded;
+                            const bytesPerSecond = bytesDiff / timeDiff;
+                            uploadSpeed.textContent = formatSpeed(bytesPerSecond);
+                            lastLoaded = e.loaded;
+                            lastTime = currentTime;
+                        }
+                        // If upload finished but awaiting server processing, update message
+                        if (percentComplete >= 100) {
+                            currentFileName.textContent = '‌Processing on server side. Please wait…';
+                        }
                     }
                 };
                 
@@ -564,13 +667,13 @@
                     if (xhr.status === 200) {
                         window.location.reload();
                     } else {
-                        alert('Upload failed. Please try again.');
+                        showErrorModal('上传失败', '服务器返回错误，请稍后重试。');
                         uploadButton.disabled = false;
                     }
                 };
                 
                 xhr.onerror = function() {
-                    alert('Upload failed. Please try again.');
+                    showErrorModal('上传失败', '网络错误，请检查连接或稍后重试。');
                     uploadButton.disabled = false;
                 };
                 
@@ -604,6 +707,7 @@
         const batchActionsGroup = document.getElementById('batchActionsGroup');
         const batchOperationsForm = document.getElementById('batchOperationsForm');
         const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
+        const moveSelectedBtn = document.getElementById('moveSelectedBtn');
         
         function updateBatchActionsVisibility() {
             const checkedBoxes = document.querySelectorAll('.item-select:checked');
@@ -661,6 +765,31 @@
                     document.getElementById('batchAction').value = 'delete';
                     batchOperationsForm.submit();
                 }
+            });
+        }
+        
+        // Handle move selected button
+        if (moveSelectedBtn) {
+            moveSelectedBtn.addEventListener('click', function() {
+                const checkedBoxes = document.querySelectorAll('.item-select:checked');
+                if (checkedBoxes.length === 0) {
+                    alert('Please select items to move');
+                    return;
+                }
+                // Clear previous hidden inputs
+                const container = document.getElementById('selectedItemsContainer');
+                container.innerHTML = '';
+                // Add hidden inputs for each selected item
+                checkedBoxes.forEach(cb => {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'selected_items[]';
+                    input.value = cb.value;
+                    container.appendChild(input);
+                });
+                // Show modal
+                const moveModal = new bootstrap.Modal(document.getElementById('moveModal'));
+                moveModal.show();
             });
         }
     });

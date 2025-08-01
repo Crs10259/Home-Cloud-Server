@@ -106,7 +106,7 @@
                              aria-valuenow="{{ disk.percent }}" 
                              aria-valuemin="0" 
                              aria-valuemax="100">
-                            {{ disk.percent }}%
+                            {{ disk.percent|round(1) }}%
                         </div>
                     </div>
                     <div class="row">

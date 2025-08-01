@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+
+{% block title %}Preview - {{ file.original_filename }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h2 class="mb-3"><i class="fas fa-eye me-2"></i>Preview</h2>
+            <p class="text-muted">{{ file.original_filename }} &middot; {{ (file.size / (1024*1024))|round(2) }} MB</p>
+            <div class="mb-3">
+                <a href="{{ url_for('files.download_file', file_id=file.id) }}" class="btn btn-primary me-2"><i class="fas fa-download me-1"></i>Download</a>
+                <a href="{{ url_for('files.index', folder_id=file.folder_id) if file.folder_id else url_for('files.index') }}" class="btn btn-secondary"><i class="fas fa-arrow-left me-1"></i>Back</a>
+            </div>
+            <div class="border rounded p-3 text-center bg-light">
+                {% if file.file_type == 'image' %}
+                <img src="{{ url_for('files.raw_file', file_id=file.id) }}" class="img-fluid" alt="{{ file.original_filename }}">
+                {% elif file.file_type == 'video' %}
+                <video controls style="max-width: 100%; height: auto;">
+                    <source src="{{ url_for('files.raw_file', file_id=file.id) }}" type="video/{{ file.original_filename.rsplit('.',1)[1]|lower }}">
+                    Your browser does not support the video tag.
+                </video>
+                {% elif file.file_type == 'audio' %}
+                <audio controls style="width: 100%;">
+                    <source src="{{ url_for('files.raw_file', file_id=file.id) }}" type="audio/{{ file.original_filename.rsplit('.',1)[1]|lower }}">
+                    Your browser does not support the audio element.
+                </audio>
+                {% elif file.original_filename.endswith('.pdf') or file.file_type == 'document' or file.file_type == 'text' %}
+                <iframe src="{{ url_for('files.raw_file', file_id=file.id) }}" style="width: 100%; height: 80vh;" frameborder="0"></iframe>
+                {% else %}
+                <p class="text-muted">Preview not available for this file type.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 
