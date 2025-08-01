@@ -16,8 +16,7 @@ A powerful personal cloud storage server with features for file upload, download
 
 ## System Requirements
 
-- Python 3.11+
-- uv (recommended) or pip
+- Python 3.8+
 - Nginx
 - SQLite3
 - Linux or Windows operating system
@@ -31,44 +30,23 @@ git clone https://github.com/Crs10259/Home-Cloud-Server.git
 cd Home-Cloud-Server
 ```
 
-### 2. Install uv (Recommended)
+### 2. Create Virtual Environment
 
 ```bash
 # Linux/macOS
-curl -LsSf https://astral.sh/uv/install.sh | sh
+python3 -m venv venv
+source venv/bin/activate
 
 # Windows
-powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
-
-# Or using pip
-pip install uv
+python -m venv venv
+venv\Scripts\activate
 ```
 
-### 3. Install Dependencies with uv
+### 3. Install Dependencies
 
 ```bash
-# Install all dependencies (including dev dependencies)
-uv sync
-
-# Or install only production dependencies
-uv sync --no-dev
-
-# Activate virtual environment
-source .venv/bin/activate  # Linux/macOS
-.venv\Scripts\activate     # Windows
-```
-
-### Alternative: Traditional pip Installation
-
-```bash
-# Create virtual environment
-python3 -m venv venv
-source venv/bin/activate  # Linux/macOS
-venv\Scripts\activate     # Windows
-
-# Install dependencies
-pip install -e .
-```
+   pip install -r requirements.txt
+   ```
 
 ### 4. Configure Storage Path
 
@@ -210,30 +188,7 @@ export FLASK_ENV=development  # Linux/macOS
 set FLASK_ENV=development    # Windows
 
 # Run server
-python main.py
-```
-
-### Development with uv
-
-```bash
-# Install development dependencies
-uv sync
-
-# Run tests
-uv run pytest
-
-# Format code
-uv run black .
-uv run isort .
-
-# Type checking
-uv run mypy .
-
-# Linting
-uv run flake8 .
-
-# Run the application
-uv run python main.py
+python app.py
 ```
 
 ## Security Recommendations
@@ -259,6 +214,14 @@ uv run python main.py
    - Check directory permissions
    - Verify file size limits
    - Check disk space
+
+## Contributing
+
+1. Fork the project
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
 
 ## License
 
