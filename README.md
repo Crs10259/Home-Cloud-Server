@@ -287,7 +287,7 @@ python main.py
 - [UV Official Documentation](https://docs.astral.sh/uv/) - Complete guide to UV
 - [UV Installation Guide](https://docs.astral.sh/uv/getting-started/installation/) - Detailed installation instructions
 - [UV GitHub Repository](https://github.com/astral-sh/uv) - Source code and issues
-- [UV vs pip Comparison](https://docs.astral.sh/uv/getting-started/why-uv/) - Why choose UV over pip
+- [UV vs pip Comparison](https://docs.astral.sh/uv/) - Why choose UV over pip
 
 ## License
 
