@@ -16,10 +16,42 @@ A powerful personal cloud storage server with features for file upload, download
 
 ## System Requirements
 
-- Python 3.8+
+- Python 3.11+
+- uv (recommended) or pip
 - Nginx
 - SQLite3
 - Linux or Windows operating system
+
+## Quick Start with UV (Recommended)
+
+This project uses [uv](https://docs.astral.sh/uv/) - a fast Python package manager and installer. For detailed installation instructions, visit the [official UV documentation](https://docs.astral.sh/uv/getting-started/installation/).
+
+### Install UV
+
+```bash
+# Linux/macOS
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# Or using pip
+pip install uv
+```
+
+### Quick Setup
+
+```bash
+# Clone and setup
+git clone https://github.com/Crs10259/Home-Cloud-Server.git
+cd Home-Cloud-Server
+
+# Install dependencies
+uv sync
+
+# Run the application
+uv run python main.py
+```
 
 ## Installation Guide
 
@@ -30,23 +62,31 @@ git clone https://github.com/Crs10259/Home-Cloud-Server.git
 cd Home-Cloud-Server
 ```
 
-### 2. Create Virtual Environment
+### 2. Install Dependencies with UV (Recommended)
 
 ```bash
-# Linux/macOS
-python3 -m venv venv
-source venv/bin/activate
+# Install all dependencies (including dev dependencies)
+uv sync
 
-# Windows
-python -m venv venv
-venv\Scripts\activate
+# Or install only production dependencies
+uv sync --no-dev
+
+# Activate virtual environment (optional, uv run handles this automatically)
+source .venv/bin/activate  # Linux/macOS
+.venv\Scripts\activate     # Windows
 ```
 
-### 3. Install Dependencies
+### Alternative: Traditional pip Installation
 
 ```bash
-   pip install -r requirements.txt
-   ```
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate  # Linux/macOS
+venv\Scripts\activate     # Windows
+
+# Install dependencies
+pip install -e .
+```
 
 ### 4. Configure Storage Path
 
@@ -174,10 +214,34 @@ Home-Cloud-Server/
 │   ├── models/
 │   ├── routes/
 │   └── utils/
-├── venv/
+├── .venv/           # UV virtual environment
 ├── config.py
-├── app.py
-└── requirements.txt
+├── main.py
+├── pyproject.toml   # Project configuration
+└── uv.lock         # Dependency lock file
+```
+
+### Development with UV
+
+```bash
+# Install development dependencies
+uv sync
+
+# Run tests
+uv run pytest
+
+# Format code
+uv run black .
+uv run isort .
+
+# Type checking
+uv run mypy .
+
+# Linting
+uv run flake8 .
+
+# Run the application
+uv run python main.py
 ```
 
 ### Running Development Server
@@ -187,8 +251,11 @@ Home-Cloud-Server/
 export FLASK_ENV=development  # Linux/macOS
 set FLASK_ENV=development    # Windows
 
-# Run server
-python app.py
+# Run server with UV
+uv run python main.py
+
+# Or traditional way
+python main.py
 ```
 
 ## Security Recommendations
@@ -214,6 +281,13 @@ python app.py
    - Check directory permissions
    - Verify file size limits
    - Check disk space
+
+## UV Resources
+
+- [UV Official Documentation](https://docs.astral.sh/uv/) - Complete guide to UV
+- [UV Installation Guide](https://docs.astral.sh/uv/getting-started/installation/) - Detailed installation instructions
+- [UV GitHub Repository](https://github.com/astral-sh/uv) - Source code and issues
+- [UV vs pip Comparison](https://docs.astral.sh/uv/getting-started/why-uv/) - Why choose UV over pip
 
 ## License
 
