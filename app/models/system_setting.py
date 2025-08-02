@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 from ..extensions import db
 
 class SystemSetting(db.Model):
@@ -17,7 +18,7 @@ class SystemSetting(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     updated_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     
-    def __init__(self, key, value, description=None, value_type='string', is_advanced=False, updated_by=None):
+    def __init__(self, key: str, value: str, description: str = None, value_type: str = 'string', is_advanced: bool = False, updated_by: int = None) -> None:
         self.key = key
         self.value = value
         self.description = description
@@ -25,7 +26,7 @@ class SystemSetting(db.Model):
         self.is_advanced = is_advanced
         self.updated_by = updated_by
     
-    def get_typed_value(self):
+    def get_typed_value(self) -> Any:
         """Convert the string value to its actual type"""
         if self.value is None:
             return None
@@ -39,7 +40,7 @@ class SystemSetting(db.Model):
         else:  # string or default
             return self.value
     
-    def to_dict(self):
+    def to_dict(self) -> dict:
         return {
             'id': self.id,
             'key': self.key,
@@ -50,5 +51,5 @@ class SystemSetting(db.Model):
             'updated_at': self.updated_at.strftime('%Y-%m-%d %H:%M:%S')
         }
     
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'<SystemSetting {self.key}: {self.value}>' 

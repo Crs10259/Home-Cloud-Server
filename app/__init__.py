@@ -1,14 +1,13 @@
 # This file initializes the app package 
-from flask import Flask, render_template, redirect, url_for
 import os
+from flask import Flask, render_template, redirect, url_for, Response
 from config import config
 from app.models.db_init import initialize_db
 from datetime import datetime
 from app.utils.system_monitor import SystemMonitor
 from flask_migrate import Migrate
-import ssl
 
-def create_app(config_name='default'):
+def create_app(config_name: str = 'default') -> Flask:
     # Specify the template folder explicitly
     template_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
     static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
@@ -62,28 +61,28 @@ def create_app(config_name='default'):
     
     # Add template global for datetime functions
     @app.context_processor
-    def inject_now():
+    def inject_now() -> dict:
         return {'now': datetime.now}
     
     @app.route('/')
-    def index():
+    def index() -> Response:
         return redirect(url_for('auth.login'))
     
     # Error handlers
     @app.errorhandler(404)
-    def page_not_found(e):
+    def page_not_found(e: Exception) -> tuple[str, int]:
         return render_template('errors/404.html'), 404
     
     @app.errorhandler(500)
-    def internal_server_error(e):
+    def internal_server_error(e: Exception) -> tuple[str, int]:
         return render_template('errors/500.html'), 500
     
     @app.errorhandler(403)
-    def forbidden(e):
+    def forbidden(e: Exception) -> tuple[str, int]:
         return render_template('errors/403.html'), 403
     
     @app.errorhandler(400)
-    def bad_request(e):
+    def bad_request(e: Exception) -> tuple[str, int]:
         return render_template('errors/400.html'), 400
     
     return app 

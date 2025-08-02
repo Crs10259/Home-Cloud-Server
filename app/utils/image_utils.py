@@ -2,9 +2,8 @@ import os
 import random
 from PIL import Image, ImageDraw, ImageFont
 import hashlib
-import io
 
-def create_placeholder_image(text=None, size=(200, 200), bg_color=None, text_color=(255, 255, 255)):
+def create_placeholder_image(text: str = None, size: tuple[int, int] = (200, 200), bg_color: tuple[int, int, int] = None, text_color: tuple[int, int, int] = (255, 255, 255)) -> Image.Image:
     """
     Create a placeholder image with optional text
     
@@ -59,7 +58,7 @@ def create_placeholder_image(text=None, size=(200, 200), bg_color=None, text_col
     
     return image
 
-def ensure_image_exists(filepath, filename=None, size=(200, 200), create_dir=True):
+def ensure_image_exists(filepath: str, filename: str = None, size: tuple[int, int] = (200, 200), create_dir: bool = True) -> str:
     """
     Check if an image exists, and create a placeholder if it doesn't
     
@@ -99,7 +98,7 @@ def ensure_image_exists(filepath, filename=None, size=(200, 200), create_dir=Tru
     
     return filepath
 
-def generate_default_avatar(name, filepath, size=(200, 200)):
+def generate_default_avatar(name: str, filepath: str, size: tuple[int, int] = (200, 200)) -> str:
     """
     Generate a default avatar image for a user when no image is available
     

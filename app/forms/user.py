@@ -28,12 +28,12 @@ class CreateUserForm(FlaskForm):
     storage_quota = IntegerField('Storage Quota (bytes)', default=1073741824)  # 1GB
     submit = SubmitField('Create User')
 
-    def validate_username(self, field):
+    def validate_username(self, field: StringField) -> None:
         user = User.query.filter_by(username=field.data).first()
         if user:
             raise ValidationError('Username already exists')
 
-    def validate_email(self, field):
+    def validate_email(self, field: StringField) -> None:
         user = User.query.filter_by(email=field.data).first()
         if user:
             raise ValidationError('Email already registered')
@@ -61,18 +61,18 @@ class EditUserForm(FlaskForm):
     storage_quota = IntegerField('Storage Quota (bytes)')
     submit = SubmitField('Update User')
 
-    def __init__(self, original_username, original_email, *args, **kwargs):
+    def __init__(self, original_username: str, original_email: str, *args, **kwargs) -> None:
         super(EditUserForm, self).__init__(*args, **kwargs)
         self.original_username = original_username
         self.original_email = original_email
 
-    def validate_username(self, field):
+    def validate_username(self, field: StringField) -> None:
         if field.data != self.original_username:
             user = User.query.filter_by(username=field.data).first()
             if user:
                 raise ValidationError('Username already exists')
 
-    def validate_email(self, field):
+    def validate_email(self, field: StringField) -> None:
         if field.data != self.original_email:
             user = User.query.filter_by(email=field.data).first()
             if user:

@@ -21,11 +21,11 @@ class Folder(db.Model):
     parent = db.relationship('Folder', remote_side=[id], backref=db.backref('subfolders', cascade='all, delete-orphan'))
     files = db.relationship('File', back_populates='folder', cascade='all, delete-orphan')
     
-    def __init__(self, name, path, user_id, parent_id=None):
+    def __init__(self, name: str, path: str, user_id: int, parent_id: int = None) -> None:
         self.name = name
         self.path = path
         self.user_id = user_id
         self.parent_id = parent_id
     
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'<Folder {self.id}: {self.name}>' 

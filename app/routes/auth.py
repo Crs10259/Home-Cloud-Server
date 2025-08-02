@@ -1,4 +1,5 @@
-from flask import Blueprint, render_template, redirect, url_for, request, flash, session, jsonify
+from typing import Callable
+from flask import Blueprint, render_template, redirect, url_for, request, flash, session, Response
 from werkzeug.security import generate_password_hash, check_password_hash
 from app.models.user import db, User
 from app.models.system import SystemSetting
@@ -9,7 +10,7 @@ import secrets
 auth = Blueprint('auth', __name__)
 
 # Authentication middleware
-def login_required(f):
+def login_required(f: Callable) -> Callable:
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
@@ -17,7 +18,7 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-def admin_required(f):
+def admin_required(f: Callable) -> Callable:
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
@@ -32,7 +33,7 @@ def admin_required(f):
     return decorated_function
 
 @auth.route('/login', methods=['GET', 'POST'])
-def login():
+def login() -> str:
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
@@ -55,7 +56,7 @@ def login():
     return render_template('auth/login.html')
 
 @auth.route('/register', methods=['GET', 'POST'])
-def register():
+def register() -> str:
     # Check if registration is enabled
     registration_enabled = SystemSetting.query.filter_by(key='enable_registration').first()
     if registration_enabled and not registration_enabled.get_typed_value():
@@ -106,13 +107,13 @@ def register():
     return render_template('auth/register.html')
 
 @auth.route('/logout')
-def logout():
+def logout() -> Response:
     session.clear()
     return redirect(url_for('auth.login'))
 
 @auth.route('/profile', methods=['GET', 'POST'])
 @login_required
-def profile():
+def profile() -> str:
     user = User.query.get(session['user_id'])
     
     if request.method == 'POST':
@@ -157,7 +158,7 @@ def profile():
                            last_upload_date=last_upload_date)
 
 @auth.route('/forgot-password', methods=['GET', 'POST'])
-def forgot_password():
+def forgot_password() -> str:
     if request.method == 'POST':
         email = request.form.get('email')
         user = User.query.filter_by(email=email).first()
@@ -183,7 +184,7 @@ def forgot_password():
     return render_template('auth/forgot_password.html')
 
 @auth.route('/reset-password/<token>', methods=['GET', 'POST'])
-def reset_password(token):
+def reset_password(token: str) -> str:
     # In a real application, you would validate the token against the database
     # For this demo, we're accepting any token
     

@@ -24,8 +24,8 @@ class Activity(db.Model):
     transfer_speed = db.Column(db.Float, nullable=True)  # Speed in bytes/second
     file_type = db.Column(db.String(50), nullable=True)  # Type of file
     
-    def __init__(self, user_id, action, target=None, details=None, ip_address=None, 
-                 file_size=None, duration=None, transfer_speed=None, file_type=None):
+    def __init__(self, user_id: int, action: str, target: str = None, details: str = None, ip_address: str = None, 
+                 file_size: int = None, duration: float = None, transfer_speed: float = None, file_type: str = None) -> None:
         self.user_id = user_id
         self.action = action
         self.target = target
@@ -36,10 +36,10 @@ class Activity(db.Model):
         self.transfer_speed = transfer_speed
         self.file_type = file_type
     
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'<Activity {self.id}: {self.action}>'
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
         return {
             'id': self.id,
             'user_id': self.user_id,

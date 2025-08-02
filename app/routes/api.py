@@ -1,3 +1,4 @@
+from typing import Callable
 from flask import Blueprint, request, jsonify, session, g
 from app.models.user import db, User
 from app.models.file import File, Folder
@@ -13,7 +14,7 @@ from werkzeug.security import check_password_hash
 api = Blueprint('api', __name__)
 
 # API authentication
-def api_login_required(f):
+def api_login_required(f: Callable) -> Callable:
     @wraps(f)
     def decorated_function(*args, **kwargs):
         auth_header = request.headers.get('Authorization')
@@ -40,7 +41,7 @@ def api_login_required(f):
     
     return decorated_function
 
-def api_admin_required(f):
+def api_admin_required(f: Callable) -> Callable:
     @wraps(f)
     def decorated_function(*args, **kwargs):
         auth_header = request.headers.get('Authorization')
@@ -74,7 +75,7 @@ def api_admin_required(f):
 # User API endpoints
 @api.route('/api/user/info')
 @api_login_required
-def user_info():
+def user_info() -> jsonify:
     user = g.user
     return jsonify({
         'id': user.id,
@@ -91,7 +92,7 @@ def user_info():
 # File API endpoints
 @api.route('/api/files')
 @api_login_required
-def list_files():
+def list_files() -> jsonify:
     user = g.user
     folder_id = request.args.get('folder_id', type=int)
     
@@ -121,7 +122,7 @@ def list_files():
 
 @api.route('/api/folders/create', methods=['POST'])
 @api_login_required
-def api_create_folder():
+def api_create_folder() -> jsonify:
     user = g.user
     data = request.json
     
@@ -156,7 +157,7 @@ def api_create_folder():
 
 @api.route('/api/files/upload', methods=['POST'])
 @api_login_required
-def api_upload_file():
+def api_upload_file() -> jsonify:
     user = g.user
     folder_id = request.form.get('folder_id', type=int)
     
@@ -225,7 +226,7 @@ def api_upload_file():
 # Admin API endpoints
 @api.route('/api/admin/users')
 @api_admin_required
-def api_list_users():
+def api_list_users() -> jsonify:
     users = User.query.all()
     users_list = []
     
@@ -246,7 +247,7 @@ def api_list_users():
 
 @api.route('/api/admin/system/stats')
 @api_admin_required
-def api_system_stats():
+def api_system_stats() -> jsonify:
     # Get real-time system stats
     cpu_percent = psutil.cpu_percent(interval=1)
     memory = psutil.virtual_memory()
@@ -293,7 +294,7 @@ def api_system_stats():
 
 @api.route('/api/admin/metrics/history')
 @api_admin_required
-def api_metrics_history():
+def api_metrics_history() -> jsonify:
     hours = request.args.get('hours', 24, type=int)
     
     # Get metrics for the specified time period

@@ -5,9 +5,10 @@ from app.models.system import SystemMetric, db, SystemSetting
 import os
 import platform
 import datetime
+from flask import Flask
 
 class SystemMonitor:
-    def __init__(self, app=None, interval=300):
+    def __init__(self, app=None, interval: int = 300) -> None:
         """
         Initialize the system monitor
         
@@ -24,7 +25,7 @@ class SystemMonitor:
         if app is not None:
             self.init_app(app)
     
-    def init_app(self, app):
+    def init_app(self, app: Flask) -> None:
         """
         Initialize with Flask app
         """
@@ -37,7 +38,7 @@ class SystemMonitor:
                 self.start()
                 self._first_request_processed = True
     
-    def get_disk_usage(self):
+    def get_disk_usage(self) -> dict:
         """
         Get total disk usage across all mounted partitions
         """
@@ -70,7 +71,7 @@ class SystemMonitor:
             'percent': usage_percent
         }
     
-    def collect_metrics(self):
+    def collect_metrics(self) -> None:
         """
         Collect system metrics and save to database
         """
@@ -105,7 +106,7 @@ class SystemMonitor:
             # Clean up expired trash items if enabled
             self.cleanup_trash()
     
-    def cleanup_trash(self):
+    def cleanup_trash(self) -> None:
         """
         Clean up expired trash items
         """
@@ -157,7 +158,7 @@ class SystemMonitor:
             db.session.add(activity)
             db.session.commit()
     
-    def monitoring_thread(self):
+    def monitoring_thread(self) -> None:
         """
         Background thread for periodic monitoring
         """
@@ -170,7 +171,7 @@ class SystemMonitor:
             # Sleep for interval
             time.sleep(self.interval)
     
-    def start(self):
+    def start(self) -> None:
         """
         Start the monitoring thread
         """
@@ -180,7 +181,7 @@ class SystemMonitor:
             self.thread.daemon = True
             self.thread.start()
     
-    def stop(self):
+    def stop(self) -> None:
         """
         Stop the monitoring thread
         """
@@ -189,7 +190,7 @@ class SystemMonitor:
             self.thread.join(timeout=1)
             self.thread = None
 
-def get_system_info():
+def get_system_info() -> dict:
     """
     Get detailed system information
     

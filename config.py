@@ -3,8 +3,9 @@ import secrets
 import platform
 import sys
 from pathlib import Path
+from flask import Flask
 
-def get_base_storage_path():
+def get_base_storage_path() -> Path:
     """Get the base storage path based on the operating system"""
     system = platform.system().lower()
     if system == 'windows':
@@ -18,14 +19,14 @@ def get_base_storage_path():
     else:
         return Path(__file__).parent / 'storage'
 
-def get_storage_path():
+def get_storage_path() -> str:
     """Get the uploads storage path"""
     base_path = get_base_storage_path()
     uploads_path = base_path / 'uploads'
     uploads_path.mkdir(parents=True, exist_ok=True)
     return str(uploads_path)
 
-def get_db_path(env):
+def get_db_path(env: str) -> str:
     """Get the database path based on environment and operating system"""
     base_path = get_base_storage_path()
     if env == 'development':
@@ -37,7 +38,7 @@ def get_db_path(env):
     db_path.parent.mkdir(parents=True, exist_ok=True)
     return str(db_path)
 
-class Config:
+class Config(object):
     # Basic configuration
     SECRET_KEY = os.environ.get('SECRET_KEY') or secrets.token_hex(16)
     SQLALCHEMY_TRACK_MODIFICATIONS = False
@@ -75,7 +76,7 @@ class Config:
     TEMP_UPLOAD_PATH = str(get_base_storage_path() / 'temp')
 
     @staticmethod
-    def init_app(app):
+    def init_app(app: Flask) -> None:
         """Initialize application configuration"""
         # Ensure all necessary directories exist
         paths = [

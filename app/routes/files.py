@@ -13,13 +13,11 @@ import time
 from flask import after_this_request
 import json
 import zipfile
-import io
-from app.utils.transfer_tracker import TransferSpeedTracker
-import shutil  # 新增，用于磁盘空间检测
+import shutil  
 
 files = Blueprint('files', __name__)
 
-def allowed_file(filename):
+def allowed_file(filename: str) -> bool:
     # Get allowed file types from system settings
     allowed_types_setting = SystemSetting.query.filter_by(key='allowed_file_types').first()
     if allowed_types_setting:
@@ -34,7 +32,7 @@ def allowed_file(filename):
     # Default allowed extensions if setting not found
     return '.' in filename
 
-def get_file_type(filename):
+def get_file_type(filename: str) -> str:
     extension = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
     mime_type, _ = mimetypes.guess_type(filename)
     
@@ -63,19 +61,19 @@ def get_file_type(filename):
     
     return 'other'
 
-def get_free_space(path):
+def get_free_space(path: str) -> int:
     """Return free space (in bytes) for the disk containing the given path"""
     try:
         usage = shutil.disk_usage(path)
         return usage.free
     except Exception as e:
         print(f"Error getting free space for {path}: {e}")
-        # 如果无法获取，返回0表示空间不足
+        # if failed, return 0
         return 0
 
 @files.route('/files')
 @login_required
-def index():
+def index() -> str:
     user_id = session.get('user_id')
     folder_id = request.args.get('folder_id', type=int)
     
@@ -118,7 +116,7 @@ def index():
 
 @files.route('/files/upload', methods=['POST'])
 @login_required
-def upload_file():
+def upload_file() -> Response:
     """Handle file upload, supporting both regular file and folder uploads"""
     user_id = session.get('user_id')
     is_folder_upload = request.form.get('is_folder_upload') == 'true'
@@ -355,7 +353,7 @@ def upload_file():
 
 @files.route('/files/download/<int:file_id>')
 @login_required
-def download_file(file_id):
+def download_file(file_id: int) -> Response:
     """Download a file with speed tracking"""
     
     user_id = session.get('user_id')
@@ -405,7 +403,7 @@ def download_file(file_id):
 
 @files.route('/files/trash')
 @login_required
-def trash():
+def trash() -> str:
     """View files in trash bin"""
     user_id = session.get('user_id')
     
@@ -469,7 +467,7 @@ def trash():
 
 @files.route('/files/restore/<int:file_id>', methods=['POST'])
 @login_required
-def restore_file(file_id):
+def restore_file(file_id: int) -> str:
     """Restore file from trash"""
     user_id = session.get('user_id')
     print(f"Attempting to restore file ID: {file_id} for user: {user_id}")
@@ -514,7 +512,7 @@ def restore_file(file_id):
 
 @files.route('/files/restore_folder/<int:folder_id>', methods=['POST'])
 @login_required
-def restore_folder(folder_id):
+def restore_folder(folder_id: int) -> str:
     """Restore folder from trash"""
     user_id = session.get('user_id')
     print(f"Attempting to restore folder ID: {folder_id} for user: {user_id}")
@@ -572,7 +570,7 @@ def restore_folder(folder_id):
 
 @files.route('/files/delete/<int:file_id>', methods=['POST'])
 @login_required
-def delete_file(file_id):
+def delete_file(file_id: int) -> str:
     """Move file to trash or permanently delete if already in trash"""
     user_id = session.get('user_id')
     file = File.query.filter_by(id=file_id, user_id=user_id).first_or_404()
@@ -612,7 +610,7 @@ def delete_file(file_id):
 
 @files.route('/files/delete_folder/<int:folder_id>', methods=['POST'])
 @login_required
-def delete_folder(folder_id):
+def delete_folder(folder_id: int) -> str:
     """Move folder to trash or permanently delete if already in trash"""
     user_id = session.get('user_id')
     folder = Folder.query.filter_by(id=folder_id, user_id=user_id).first_or_404()
@@ -703,7 +701,7 @@ def delete_folder(folder_id):
 
 @files.route('/files/empty_trash', methods=['POST'])
 @login_required
-def empty_trash():
+def empty_trash() -> str:
     """Permanently delete all files and folders in trash"""
     user_id = session.get('user_id')
     
@@ -738,7 +736,7 @@ def empty_trash():
 
 @files.route('/folders/create', methods=['POST'])
 @login_required
-def create_folder():
+def create_folder() -> str:
     user_id = session.get('user_id')
     folder_name = request.form.get('folder_name')
     parent_id = request.form.get('parent_id', type=int)
@@ -774,7 +772,7 @@ def create_folder():
 
 @files.route('/files/search')
 @login_required
-def search_files():
+def search_files() -> str:
     user_id = session.get('user_id')
     query = request.args.get('query', '')
     
@@ -798,7 +796,7 @@ def search_files():
 
 @files.route('/files/rename/<int:file_id>', methods=['POST'])
 @login_required
-def rename_file(file_id):
+def rename_file(file_id: int) -> str:
     user_id = session.get('user_id')
     new_name = request.form.get('new_name')
     
@@ -823,7 +821,7 @@ def rename_file(file_id):
 
 @files.route('/files/rename_folder/<int:folder_id>', methods=['POST'])
 @login_required
-def rename_folder(folder_id):
+def rename_folder(folder_id: int) -> str:
     user_id = session.get('user_id')
     new_name = request.form.get('new_name')
     
@@ -855,7 +853,7 @@ def rename_folder(folder_id):
 
 @files.route('/files/history')
 @login_required
-def transfer_history():
+def transfer_history() -> str:
     """View file transfer history"""
     user_id = session.get('user_id')
     
@@ -918,7 +916,7 @@ def transfer_history():
 
 @files.route('/files/batch_restore', methods=['POST'])
 @login_required
-def batch_restore():
+def batch_restore() -> str:
     """Batch restore selected files and folders"""
     user_id = session.get('user_id')
     selected_items = request.form.getlist('selected_items[]')
@@ -996,7 +994,7 @@ def batch_restore():
 
 @files.route('/files/batch_delete', methods=['POST'])
 @login_required
-def batch_delete():
+def batch_delete() -> str:
     user_id = session.get('user_id')
     selected_items = request.form.getlist('selected_items[]')
     
@@ -1074,7 +1072,7 @@ def batch_delete():
 
 @files.route('/files/download_folder/<int:folder_id>')
 @login_required
-def download_folder(folder_id):
+def download_folder(folder_id: int) -> Response:
     """Stream a folder as ZIP without waiting for full compression."""
     import zipstream  # lazily import to avoid overhead if never used
     user_id = session.get('user_id')
@@ -1131,7 +1129,7 @@ def download_folder(folder_id):
 
 @files.route('/files/batch_move', methods=['POST'])
 @login_required
-def batch_move():
+def batch_move() -> str:
     """Move selected files and folders to a destination folder"""
     user_id = session.get('user_id')
     selected_items = request.form.getlist('selected_items[]')
@@ -1214,7 +1212,7 @@ def batch_move():
 
 @files.route('/files/raw/<int:file_id>')
 @login_required
-def raw_file(file_id):
+def raw_file(file_id: int) -> Response:
     """Serve a file directly for inline preview (no attachment)."""
     user_id = session.get('user_id')
     file = File.query.filter_by(id=file_id, user_id=user_id, is_deleted=False).first_or_404()
@@ -1229,7 +1227,7 @@ def raw_file(file_id):
 
 @files.route('/files/preview/<int:file_id>')
 @login_required
-def preview_file(file_id):
+def preview_file(file_id: int) -> str:
     """Render a preview page for a given file."""
     user_id = session.get('user_id')
     file = File.query.filter_by(id=file_id, user_id=user_id, is_deleted=False).first_or_404()
@@ -1238,7 +1236,7 @@ def preview_file(file_id):
 
 @files.route('/files/remote_download', methods=['POST'])
 @login_required
-def remote_download():
+def remote_download() -> Response:
     """Download a remote file directly into the user's cloud storage."""
     import requests
     from urllib.parse import urlparse, unquote

@@ -4,11 +4,11 @@ import mimetypes
 import shutil
 import zipfile
 import io
-from flask import send_file
+from flask import send_file, Response   
 from werkzeug.utils import secure_filename
 import uuid
 
-def get_file_hash(file_path):
+def get_file_hash(file_path: str) -> str:
     """
     Calculate MD5 hash of a file
     
@@ -24,7 +24,7 @@ def get_file_hash(file_path):
             hash_md5.update(chunk)
     return hash_md5.hexdigest()
 
-def get_mime_type(file_path):
+def get_mime_type(file_path: str) -> str:
     """
     Get MIME type of a file
     
@@ -37,7 +37,7 @@ def get_mime_type(file_path):
     mime_type, _ = mimetypes.guess_type(file_path)
     return mime_type or 'application/octet-stream'
 
-def create_unique_filename(original_filename):
+def create_unique_filename(original_filename: str) -> str:
     """
     Create a unique filename to avoid conflicts
     
@@ -51,7 +51,7 @@ def create_unique_filename(original_filename):
     unique_filename = f"{uuid.uuid4().hex}_{filename}"
     return unique_filename
 
-def get_file_size(file_path):
+def get_file_size(file_path: str) -> int:
     """
     Get file size in bytes
     
@@ -63,7 +63,7 @@ def get_file_size(file_path):
     """
     return os.path.getsize(file_path)
 
-def create_zip_archive(file_paths, zip_name='archive.zip'):
+def create_zip_archive(file_paths: list[str], zip_name: str = 'archive.zip') -> io.BytesIO:
     """
     Create a zip archive from multiple files
     
@@ -85,7 +85,7 @@ def create_zip_archive(file_paths, zip_name='archive.zip'):
     memory_file.seek(0)
     return memory_file
 
-def send_files_as_zip(file_paths, zip_name='archive.zip'):
+def send_files_as_zip(file_paths: list[str], zip_name: str = 'archive.zip') -> Response:
     """
     Send multiple files as a zip archive
     
@@ -104,7 +104,7 @@ def send_files_as_zip(file_paths, zip_name='archive.zip'):
         download_name=zip_name
     )
 
-def delete_file_safely(file_path):
+def delete_file_safely(file_path: str) -> bool:
     """
     Safely delete a file, handling errors
     
@@ -122,7 +122,7 @@ def delete_file_safely(file_path):
         print(f"Error deleting file {file_path}: {e}")
     return False
 
-def delete_folder_safely(folder_path):
+def delete_folder_safely(folder_path: str) -> bool:
     """
     Safely delete a folder and its contents, handling errors
     

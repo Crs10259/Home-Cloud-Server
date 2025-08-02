@@ -1,12 +1,12 @@
+from flask import Flask
 from app.models.user import User
 from app.models.file import File, Folder
 from app.models.system import SystemMetric, SystemSetting
 from app.models.activity import Activity
 from app.extensions import db
 from werkzeug.security import generate_password_hash
-import os
 
-def initialize_db(app):
+def initialize_db(app: Flask) -> None:
     db.init_app(app)
     
     with app.app_context():

@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 from app.models.user import db
 
 class SystemMetric(db.Model):
@@ -13,7 +14,7 @@ class SystemMetric(db.Model):
     active_connections = db.Column(db.Integer)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     
-    def to_dict(self):
+    def to_dict(self) -> dict:
         return {
             'id': self.id,
             'cpu_usage': self.cpu_usage,
@@ -37,7 +38,7 @@ class SystemSetting(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     updated_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     
-    def get_typed_value(self):
+    def get_typed_value(self) -> Any:
         if self.value is None:
             return None
         
@@ -50,7 +51,7 @@ class SystemSetting(db.Model):
         else:  # string or default
             return self.value
     
-    def to_dict(self):
+    def to_dict(self) -> dict:
         return {
             'id': self.id,
             'key': self.key,
