@@ -39,7 +39,8 @@ class User(db.Model):
     def update_storage_used(self):
         """Update the user's storage usage by calculating the total size of their files"""
         from app.models.file import File
-        total_size = db.session.query(db.func.sum(File.size)).filter_by(user_id=self.id).scalar() or 0
+        # Only count files that are not in trash
+        total_size = db.session.query(db.func.sum(File.size)).filter_by(user_id=self.id, is_deleted=False).scalar() or 0
         self.storage_used = total_size
         db.session.commit()
         return self.storage_used

@@ -8,6 +8,7 @@ import psutil
 import platform
 import datetime
 import os
+from app.utils.system_monitor import SystemMonitor
 
 admin = Blueprint('admin', __name__)
 
@@ -236,7 +237,10 @@ def system():
     # Get real-time system stats
     cpu_percent = psutil.cpu_percent(interval=1)
     memory = psutil.virtual_memory()
-    disk = psutil.disk_usage('/')
+    
+    # Get total disk usage across all partitions
+    monitor = SystemMonitor()
+    disk = monitor.get_disk_usage()
     
     # Network stats
     net_io_counters = psutil.net_io_counters()
@@ -258,7 +262,7 @@ def system():
     new_metric = SystemMetric(
         cpu_usage=cpu_percent,
         memory_usage=memory.percent,
-        disk_usage=disk.percent,
+        disk_usage=disk['percent'],
         network_rx=net_io_counters.bytes_recv,
         network_tx=net_io_counters.bytes_sent,
         active_connections=len(psutil.net_connections())

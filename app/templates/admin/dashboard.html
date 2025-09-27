@@ -87,7 +87,7 @@
                         <li class="list-group-item d-flex justify-content-between">
                             <span>Disk Usage</span>
                             <span class="badge {% if system_stats.disk_percent > 90 %}bg-danger{% elif system_stats.disk_percent > 70 %}bg-warning{% else %}bg-success{% endif %}">
-                                {{ system_stats.disk_percent }}%
+                                {{ system_stats.disk_percent|round(1) }}%
                             </span>
                         </li>
                         <li class="list-group-item d-flex justify-content-between">
@@ -99,6 +99,9 @@
                             <span class="text-muted">{{ system_stats.python_version }}</span>
                         </li>
                         <li class="list-group-item d-flex justify-content-between">
+                            <span>App Version</span>
+                            <span class="text-muted">{{ app_version }}</span>
+                        </li>
                             <span>Uptime</span>
                             <span class="text-muted">{{ system_stats.uptime }}</span>
                         </li>
@@ -245,4 +248,4 @@
         });
     });
 </script>
-{% endblock %} 
+{% endblock %}
