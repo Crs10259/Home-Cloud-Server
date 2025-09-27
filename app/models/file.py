@@ -19,10 +19,10 @@ class File(db.Model):
     deleted_at = db.Column(db.DateTime, nullable=True)
     expiry_date = db.Column(db.DateTime, nullable=True)  # When this file will be permanently deleted from trash
     
-    def get_extension(self):
+    def get_extension(self) -> str:
         return os.path.splitext(self.original_filename)[1].lower()
     
-    def to_dict(self):
+    def to_dict(self) -> dict:
         return {
             'id': self.id,
             'filename': self.original_filename,
@@ -35,7 +35,7 @@ class File(db.Model):
             'expiry_date': self.expiry_date.strftime('%Y-%m-%d %H:%M:%S') if self.expiry_date else None
         }
     
-    def move_to_trash(self, retention_days=30):
+    def move_to_trash(self, retention_days: int = 30) -> None:
         """Move file to trash with specified retention period"""
         from app.models.system import SystemSetting
         from app.models.user import User
@@ -57,13 +57,13 @@ class File(db.Model):
         self.deleted_at = datetime.utcnow()
         self.expiry_date = self.deleted_at + timedelta(days=retention_days)
     
-    def restore_from_trash(self):
+    def restore_from_trash(self) -> None:
         """Restore file from trash"""
         self.is_deleted = False
         self.deleted_at = None
         self.expiry_date = None
     
-    def permanently_delete(self):
+    def permanently_delete(self) -> None:
         """Permanently delete the file"""
         try:
             if os.path.exists(self.file_path):
@@ -91,7 +91,7 @@ class Folder(db.Model):
     parent = db.relationship('Folder', remote_side=[id], backref=db.backref('children', lazy='dynamic'))
     files = db.relationship('File', backref='folder', lazy='dynamic')
     
-    def to_dict(self):
+    def to_dict(self) -> dict:
         return {
             'id': self.id,
             'name': self.name,
@@ -103,13 +103,13 @@ class Folder(db.Model):
             'expiry_date': self.expiry_date.strftime('%Y-%m-%d %H:%M:%S') if self.expiry_date else None
         }
     
-    def get_path(self):
+    def get_path(self) -> str:
         """Get the full path of the folder"""
         if self.parent_id is None:
             return f"/{self.name}"
         return f"{self.parent.get_path()}/{self.name}"
     
-    def move_to_trash(self, retention_days=30):
+    def move_to_trash(self, retention_days: int = 30) -> None:
         """Move folder to trash with specified retention period"""
         from app.models.system import SystemSetting
         from app.models.user import User
@@ -131,7 +131,7 @@ class Folder(db.Model):
         self.deleted_at = datetime.utcnow()
         self.expiry_date = self.deleted_at + timedelta(days=retention_days)
     
-    def restore_from_trash(self):
+    def restore_from_trash(self) -> None:
         """Restore folder from trash"""
         self.is_deleted = False
         self.deleted_at = None

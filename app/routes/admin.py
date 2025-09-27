@@ -14,7 +14,7 @@ admin = Blueprint('admin', __name__)
 
 @admin.route('/admin')
 @admin_required
-def index():
+def index() -> str:
     # Count total users, files, and storage used
     total_users = User.query.count()
     total_files = File.query.filter_by(is_deleted=False).count()
@@ -44,13 +44,13 @@ def index():
 
 @admin.route('/admin/users')
 @admin_required
-def users():
+def users() -> str:
     users = User.query.all()
     return render_template('admin/users.html', users=users)
 
 @admin.route('/admin/users/create', methods=['GET', 'POST'])
 @admin_required
-def create_user():
+def create_user() -> str:
     if request.method == 'POST':
         username = request.form.get('username')
         email = request.form.get('email')
@@ -106,7 +106,7 @@ def create_user():
 
 @admin.route('/admin/users/edit/<int:user_id>', methods=['GET', 'POST'])
 @admin_required
-def edit_user(user_id):
+def edit_user(user_id: int) -> str:
     user = User.query.get_or_404(user_id)
     
     if request.method == 'POST':
@@ -151,7 +151,7 @@ def edit_user(user_id):
 
 @admin.route('/admin/users/delete/<int:user_id>', methods=['POST'])
 @admin_required
-def delete_user(user_id):
+def delete_user(user_id: int) -> str:
     if user_id == session.get('user_id'):
         flash('Cannot delete your own account', 'danger')
         return redirect(url_for('admin.users'))
@@ -179,13 +179,13 @@ def delete_user(user_id):
 
 @admin.route('/admin/settings')
 @admin_required
-def settings():
+def settings() -> str:
     settings = SystemSetting.query.all()
     return render_template('admin/settings.html', settings=settings)
 
 @admin.route('/admin/settings/update', methods=['POST'])
 @admin_required
-def update_settings():
+def update_settings() -> str:
     for key, value in request.form.items():
         if key.startswith('setting_'):
             setting_id = int(key.split('_')[1])
@@ -202,7 +202,7 @@ def update_settings():
 
 @admin.route('/admin/settings/add', methods=['POST'])
 @admin_required
-def add_setting():
+def add_setting() -> str:
     key = request.form.get('key')
     value = request.form.get('value')
     value_type = request.form.get('value_type')
@@ -233,7 +233,7 @@ def add_setting():
 
 @admin.route('/admin/system')
 @admin_required
-def system():
+def system() -> str:
     # Get real-time system stats
     cpu_percent = psutil.cpu_percent(interval=1)
     memory = psutil.virtual_memory()

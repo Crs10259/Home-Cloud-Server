@@ -18,25 +18,25 @@ class User(db.Model):
     trash_retention_days = db.Column(db.Integer, default=30)  # Default 30 days for trash retention
     
     @property
-    def password(self):
+    def password(self) -> str:
         raise AttributeError('password is not a readable attribute')
     
     @password.setter
-    def password(self, password):
+    def password(self, password: str) -> None:
         self.password_hash = generate_password_hash(password)
     
-    def verify_password(self, password):
+    def verify_password(self, password: str) -> bool:
         return check_password_hash(self.password_hash, password)
     
-    def is_admin(self):
+    def is_admin(self) -> bool:
         return self.role == 'admin'
     
-    def get_storage_usage_percent(self):
+    def get_storage_usage_percent(self) -> float:
         if self.storage_quota > 0:
             return (self.storage_used / self.storage_quota) * 100
         return 100
     
-    def update_storage_used(self):
+    def update_storage_used(self) -> int:
         """Update the user's storage usage by calculating the total size of their files"""
         from app.models.file import File
         # Only count files that are not in trash
@@ -45,6 +45,6 @@ class User(db.Model):
         db.session.commit()
         return self.storage_used
     
-    def has_space_for_file(self, file_size):
+    def has_space_for_file(self, file_size: int) -> bool:
         """Check if user has enough space for a file of the given size"""
         return (self.storage_used + file_size) <= self.storage_quota 

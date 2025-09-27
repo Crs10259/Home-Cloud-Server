@@ -1,6 +1,7 @@
 import time
 import io
-from flask import request, g
+from flask import request, g, Response
+from typing import Callable
 from functools import wraps
 from werkzeug.datastructures import FileStorage
 
@@ -9,14 +10,14 @@ class TransferSpeedTracker:
     Utility class to track file uploads and downloads with speed metrics
     """
     
-    def __init__(self):
+    def __init__(self) -> None:
         self.start_time = None
         self.end_time = None
         self.file_size = 0
         self.bytes_transferred = 0
         self.is_tracking = False
     
-    def start(self, file_size=None):
+    def start(self, file_size: int = None) -> 'TransferSpeedTracker':
         """Start tracking a file transfer"""
         self.start_time = time.time()
         self.file_size = file_size
@@ -24,14 +25,14 @@ class TransferSpeedTracker:
         self.is_tracking = True
         return self
     
-    def update(self, bytes_count):
+    def update(self, bytes_count: int) -> None:
         """Update bytes transferred count"""
         if not self.is_tracking:
             return
         
         self.bytes_transferred += bytes_count
     
-    def stop(self):
+    def stop(self) -> dict:
         """Stop tracking and return metrics"""
         if not self.is_tracking:
             return None
@@ -55,7 +56,7 @@ class TrackableFileStorage(FileStorage):
     Wrapper around FileStorage that tracks read operations
     """
     
-    def __init__(self, file_storage, tracker):
+    def __init__(self, file_storage: FileStorage, tracker: TransferSpeedTracker) -> None:
         super().__init__(
             stream=file_storage.stream,
             filename=file_storage.filename,
@@ -67,7 +68,7 @@ class TrackableFileStorage(FileStorage):
         self.tracker = tracker
         self._file = TrackableFile(self.stream, self.tracker)
     
-    def save(self, dst, buffer_size=16384):
+    def save(self, dst: str, buffer_size: int = 16384) -> None:
         """
         Save the file to a destination path, tracking bytes written
         """
@@ -84,22 +85,22 @@ class TrackableFile:
     File-like wrapper that tracks read operations
     """
     
-    def __init__(self, fileobj, tracker):
+    def __init__(self, fileobj: io.BytesIO, tracker: TransferSpeedTracker) -> None:
         self.fileobj = fileobj
         self.tracker = tracker
     
-    def read(self, size=-1):
+    def read(self, size: int = -1) -> bytes:
         data = self.fileobj.read(size)
         self.tracker.update(len(data))
         return data
     
-    def seek(self, offset, whence=io.SEEK_SET):
+    def seek(self, offset: int, whence: int = io.SEEK_SET) -> int:
         return self.fileobj.seek(offset, whence)
     
-    def tell(self):
+    def tell(self) -> int:
         return self.fileobj.tell()
     
-    def close(self):
+    def close(self) -> None:
         return self.fileobj.close()
 
 class TrackableResponse:
@@ -107,7 +108,7 @@ class TrackableResponse:
     Response wrapper that tracks bytes sent
     """
     
-    def __init__(self, response, tracker):
+    def __init__(self, response: Response, tracker: TransferSpeedTracker) -> None:
         self.response = response
         self.tracker = tracker
         
@@ -119,7 +120,7 @@ class TrackableResponse:
     def __getattr__(self, name):
         return getattr(self.response, name)
 
-def track_upload():
+def track_upload() -> Callable:
     """Decorator to track file upload speed and time"""
     def decorator(f):
         @wraps(f)
@@ -146,7 +147,7 @@ def track_upload():
         return decorated_function
     return decorator
 
-def track_download():
+def track_download() -> Callable:
     """Decorator to track file download speed and time"""
     def decorator(f):
         @wraps(f)
