@@ -1,14 +1,25 @@
 import os
 import secrets
 import platform
-import sys
 from pathlib import Path
+
+
+def _project_ssl_path(filename: str) -> str:
+    """Get SSL file path inside project directory."""
+    return str(Path(__file__).parent / 'ssl' / filename)
 
 def get_base_storage_path():
     """Get the base storage path based on the operating system"""
+    env_storage_path = os.environ.get('BASE_STORAGE_PATH')
+    if env_storage_path:
+        return Path(env_storage_path).expanduser()
+
     system = platform.system().lower()
     if system == 'windows':
-        return Path('D:/cloud_storage')
+        windows_default = Path('D:/cloud_storage')
+        if Path('D:/').exists():
+            return windows_default
+        return Path.home() / 'cloud_storage'
     elif system == 'linux':
         if os.path.exists('/mnt/cloud_storage'):
             return Path('/mnt/cloud_storage')
@@ -55,12 +66,12 @@ class Config:
     
     # SSL certificate configuration
     system = platform.system().lower()
-    if system == 'windows':
-        SSL_CERT = str(Path(__file__).parent / 'ssl' / 'home-cloud.crt')
-        SSL_KEY = str(Path(__file__).parent / 'ssl' / 'home-cloud.key')
-    else:
+    if system == 'linux':
         SSL_CERT = '/etc/ssl/certs/home-cloud.crt'
         SSL_KEY = '/etc/ssl/private/home-cloud.key'
+    else:
+        SSL_CERT = _project_ssl_path('home-cloud.crt')
+        SSL_KEY = _project_ssl_path('home-cloud.key')
     
     # Trash bin configuration
     TRASH_ENABLED = True
@@ -89,8 +100,8 @@ class Config:
         for path in paths:
             os.makedirs(path, exist_ok=True)
         
-        # Create SSL certificate directory on Windows
-        if platform.system().lower() == 'windows':
+        # Create SSL certificate directory when SSL certs are stored in project
+        if platform.system().lower() != 'linux':
             ssl_dir = os.path.dirname(Config.SSL_CERT)
             os.makedirs(ssl_dir, exist_ok=True)
 
